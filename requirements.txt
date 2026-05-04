@@ -1,0 +1,29 @@
+# 기본
+fastapi
+uvicorn
+pandas
+requests
+
+# 저장소
+elasticsearch
+pymysql
+sqlalchemy
+
+# 크롤링
+#beautifulsoup4
+#selenium
+#playwright
+#webdriver-manager
+#feedparser
+
+# 자연어 처리 및 전처리
+#python-dateutil
+#spacy>=3.7.0
+#transformers
+#bertopic==0.17.4
+#google-genai
+
+# [System] GPU Support
+#torch --index-url https://download.pytorch.org/whl/cu118
+#torchvision --index-url https://download.pytorch.org/whl/cu118
+#torchaudio --index-url https://download.pytorch.org/whl/cu118

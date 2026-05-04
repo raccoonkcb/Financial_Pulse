@@ -1,0 +1,14 @@
+폴더 설명
+1) crawiling        : 크롤링 관련 코드 폴더
+
+2) dataStorage      : DB, ES 관련 코드 폴더
+
+3) encryption       : 암호화 관련 코드 폴더 (비밀번호)
+
+4) logs             : 관리 로그 코드 폴더 (관리자용...)
+
+5) machinLearning   : 머신 러닝 관련 코드 폴더 (전처리/ 형태소 분석/ 성향 분석)
+
+6) service          : 서비스 실행 관련 코드 활용 폴더
+
+7) view             : front-end (HTML)
