@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from dataStorage.elasticSearch.esModel import IntegrityCheckRequest, CompareUrlRequest
+from model.esModel import IntegrityCheckRequest, CompareUrlRequest
 from service.esSvc import run_integrity_check, compare_urls, recollect_missing, get_index_status
 from encryption.encAuth import verify_api_key
 

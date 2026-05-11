@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from crawling.crawlModel import CrawlRequest, RetryRequest, RetrySelectedRequest
+from model.crawlModel import CrawlRequest, RetryRequest, RetrySelectedRequest
 from service.crawlSvc import run_crawl_batch, extract_error_urls, retry_error_urls, get_crawl_summary, retry_selected_urls
 from encryption.encAuth import verify_api_key
 

@@ -8,6 +8,7 @@ requests
 elasticsearch
 pymysql
 sqlalchemy
+# pydantic
 
 # 암호화
 argon2-cffi

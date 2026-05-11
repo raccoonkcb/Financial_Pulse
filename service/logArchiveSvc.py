@@ -2,8 +2,8 @@ import asyncio
 import json
 from datetime import datetime, timezone
 from elasticsearch.helpers import scan
-from dataStorage.elasticSearch.es import getEs, ALL_LOG_IDX
-from logs.logModel import LogSearchRequest
+from dataStorage.elasticSearch.es import getEs
+from model.logModel import LogSearchRequest
 from service.logSvc import search_log
 from logs.logger import get_logger
 

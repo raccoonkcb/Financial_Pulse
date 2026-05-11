@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse, StreamingResponse
-from logs.logModel import LogSearchRequest
-from manager.logArchiveModel import ArchiveRequest
+from model.logModel import LogSearchRequest
+from model.logArchiveModel import ArchiveRequest
 from service.logSvc import search_log, export_log_csv, get_log_summary
 from service.logArchiveSvc import stream_logs, archive_logs
 from encryption.encAuth import verify_api_key

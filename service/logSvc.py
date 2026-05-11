@@ -1,6 +1,5 @@
-from elasticsearch.helpers import scan
 from dataStorage.elasticSearch.es import getEs, ALL_LOG_IDX
-from logs.logModel import LogSearchRequest
+from model.logModel import LogSearchRequest
 from logs.logger import get_logger
 
 logger = get_logger("system")

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse
-from manager.correctionModel import CorrectionRequest, ExportRequest
+from model.correctionModel import CorrectionRequest, ExportRequest
 from service.correctionSvc import detect_irregular, apply_correction, delete_article, export_corrections
 from encryption.encAuth import verify_api_key
 
