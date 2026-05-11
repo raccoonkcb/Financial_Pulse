@@ -184,7 +184,7 @@ ANALYZE_MAPPING = {
     }
 }
 
-def create_all_indices():
+def createAllIndices():
     """
     서버 시작 시 필요한 모든 인덱스를 한 번에 생성
     - 이미 존재하는 인덱스는 SKIP (덮어쓰지 않음)

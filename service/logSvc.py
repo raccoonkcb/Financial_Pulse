@@ -1,10 +1,10 @@
 from dataStorage.elasticSearch.es import getEs, ALL_LOG_IDX
 from model.logModel import LogSearchRequest
-from logs.logger import get_logger
+from logs.logger import getLogger
 
-logger = get_logger("system")
+logger = getLogger("system")
 
-def search_log(req: LogSearchRequest) -> dict:
+def searchLog(req: LogSearchRequest) -> dict:
     """
     필터 조건으로 fp-logs-all 에서 로그 조회
     - level, subject, 시간 범위 필터
@@ -45,7 +45,7 @@ def search_log(req: LogSearchRequest) -> dict:
     return {"total": len(logs), "logs": logs}
 
 
-def export_log_csv(req: LogSearchRequest) -> str:
+def exportLogCsv(req: LogSearchRequest) -> str:
     """
     로그 조회 결과를 CSV 형식으로 변환
     - logViewer의 CSV 내보내기 버튼 처리
@@ -56,7 +56,7 @@ def export_log_csv(req: LogSearchRequest) -> str:
 
     logger.info("CSV 내보내기 시작")
 
-    result = search_log(req)
+    result = searchLog(req)
     logs   = result["logs"]
 
     output = io.StringIO()
@@ -82,7 +82,7 @@ def export_log_csv(req: LogSearchRequest) -> str:
     return "\ufeff" + output.getvalue()
 
 
-def get_log_summary(subject: str = None) -> dict:
+def getLogSummary(subject: str = None) -> dict:
     """
     로그 집계 조회
     - logViewer 상단 집계 카드 (총로그/ERROR/WARN/SUCCESS) 처리

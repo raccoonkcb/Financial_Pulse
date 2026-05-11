@@ -1,7 +1,7 @@
 import pymysql
 import os
 from dotenv import load_dotenv
-from logs.logger import get_logger
+from logs.logger import getLogger
 
 # 1. .env 파일 로드
 # current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -9,10 +9,9 @@ from logs.logger import get_logger
 # load_dotenv(env_path)
 load_dotenv()
 
-logger = get_logger("system")
+logger = getLogger("system")
 
-def create_tables():
-    # 2. DB 연결 설정
+def getConn():
     conn = pymysql.connect(
         host=os.getenv("DB_HOST"),
         port=int(os.getenv("DB_PORT")),
@@ -21,6 +20,11 @@ def create_tables():
         db=os.getenv("DB_NAME"),
         cursorclass=pymysql.cursors.DictCursor
     )
+    return conn
+
+def createTables():
+    # 2. DB 연결 설정
+    conn = getConn()
 
     try:
         with conn.cursor() as cursor:
@@ -65,7 +69,7 @@ def create_tables():
 
 
 if __name__ == "__main__":
-    create_tables()
+    createTables()
 
 
 # -- [회원정보 데이터 테이블]

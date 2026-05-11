@@ -1,12 +1,12 @@
 import json
 from elasticsearch.helpers import scan
 from dataStorage.elasticSearch.es import getEs, ANALYZE_DATA_IDX
-from logs.logger import get_logger
+from logs.logger import getLogger
 
 
-logger = get_logger("ml")
+logger = getLogger("ml")
 
-def detect_irregular() -> dict:
+def detectIrregular() -> dict:
     """
     비정형 감지 - tend_score 95 이상 또는 5 이하 기사 탐지
     → dataCon UI 검토 필요 목록 처리
@@ -31,7 +31,7 @@ def detect_irregular() -> dict:
     return {"total": len(docs), "docs": docs}
 
 
-def apply_correction(doc_id: str, tendency: str, tend_score: float) -> dict:
+def applyCorrection(doc_id: str, tendency: str, tend_score: float) -> dict:
     """
     관리자 보정 확정
     1. analyze 인덱스 업데이트
@@ -55,7 +55,7 @@ def apply_correction(doc_id: str, tendency: str, tend_score: float) -> dict:
     return {"doc_id": doc_id, "tendency": tendency, "tend_score": tend_score, "status": "보정 완료"}
 
 
-def delete_article(doc_id: str) -> dict:
+def deleteArticle(doc_id: str) -> dict:
     """
     기사 삭제 - dataCon UI '삭제' 버튼 처리
     - analyze + search 인덱스에서 동시 삭제
@@ -71,7 +71,7 @@ def delete_article(doc_id: str) -> dict:
     return {"doc_id": doc_id, "status": "삭제 완료"}
 
 
-def export_corrections(start_time: str, end_time: str) -> list:
+def exportCorrections(start_time: str, end_time: str) -> list:
     """
     보정 완료된 학습 데이터 JSONL 형식으로 내보내기
     - fp-logs-ml 에서 "보정 확정" 로그 조회

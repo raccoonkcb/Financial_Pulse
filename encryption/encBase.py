@@ -10,4 +10,7 @@ load_dotenv(env_path)
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
 if not ADMIN_API_KEY:
     raise RuntimeError("api-key not set")
+
 pepper= os.getenv("SECRET_PEPPER")
+if not pepper:
+    raise RuntimeError("pepper not set")

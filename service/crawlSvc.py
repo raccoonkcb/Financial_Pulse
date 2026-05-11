@@ -2,11 +2,11 @@ import uuid
 from datetime import datetime, timezone
 from elasticsearch.helpers import bulk
 from dataStorage.elasticSearch.es import getEs, NEWS_KO_IDX, NEWS_EN_IDX
-from logs.logger import get_logger
+from logs.logger import getLogger
 
-logger = get_logger("crawl")
+logger = getLogger("crawl")
 
-def run_crawl_batch(urls: list, lang: str = "ko", batch_id: str = None) -> dict:
+def runCrawlBatch(urls: list, lang: str = "ko", batch_id: str = None) -> dict:
     """
     배치 크롤링 실행
     1. 시작 로그 기록
@@ -79,7 +79,7 @@ def run_crawl_batch(urls: list, lang: str = "ko", batch_id: str = None) -> dict:
     }
 
 
-def extract_error_urls(batch_id: str) -> list:
+def extractErrorUrls(batch_id: str) -> list:
     """
     fp-logs-crawl 에서 특정 배치의 ERROR 로그를 조회하여
     extra.url 필드에서 실패 URL 목록 추출
@@ -111,12 +111,12 @@ def extract_error_urls(batch_id: str) -> list:
     return error_urls
 
 
-def retry_error_urls(batch_id: str, lang: str = "ko") -> dict:
+def retryErrorUrls(batch_id: str, lang: str = "ko") -> dict:
     """
     실패한 URL 추출 후 재크롤링
     - 새로운 batch_id 부여하여 원본 배치와 구분
     """
-    error_urls = extract_error_urls(batch_id)
+    error_urls = extractErrorUrls(batch_id)
 
     if not error_urls:
         logger.info("재시도할 URL 없음", extra={"batch_id": batch_id})
@@ -128,19 +128,19 @@ def retry_error_urls(batch_id: str, lang: str = "ko") -> dict:
         "retry_batch_id":  retry_batch_id,
         "retry_cnt":       len(error_urls)
     })
-    return run_crawl_batch(urls=error_urls, lang=lang, batch_id=retry_batch_id)
+    return runCrawlBatch(urls=error_urls, lang=lang, batch_id=retry_batch_id)
 
 
-def get_crawl_summary() -> dict:
+def getCrawlSummary() -> dict:
     """
     크롤링 현황 집계
     - crawCon 상단 카드 (총로그/ERROR/WARN/마지막실행) 처리
     """
-    from service.logSvc import get_log_summary
-    return get_log_summary(subject="crawl")
+    from service.logSvc import getLogSummary
+    return getLogSummary(subject="crawl")
 
 
-def retry_selected_urls(urls: list, batch_id: str, lang: str = "ko") -> dict:
+def retrySelectedUrls(urls: list, batch_id: str, lang: str = "ko") -> dict:
     """
     선택적 재시도 - crawCon UI에서 체크박스로 선택한 URL만 재시도
     """
@@ -154,4 +154,4 @@ def retry_selected_urls(urls: list, batch_id: str, lang: str = "ko") -> dict:
         "retry_batch_id":  retry_batch_id,
         "selected_cnt":    len(urls)
     })
-    return run_crawl_batch(urls=urls, lang=lang, batch_id=retry_batch_id)
+    return runCrawlBatch(urls=urls, lang=lang, batch_id=retry_batch_id)

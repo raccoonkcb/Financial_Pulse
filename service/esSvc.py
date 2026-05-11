@@ -1,10 +1,10 @@
 from elasticsearch.helpers import scan
 from dataStorage.elasticSearch.es import getEs, NEWS_KO_IDX, NEWS_EN_IDX, ANALYZE_DATA_IDX
-from logs.logger import get_logger
+from logs.logger import getLogger
 
-logger = get_logger("system")
+logger = getLogger("system")
 
-def run_integrity_check(batch_id: str, lang: str = "ko") -> dict:
+def runIntegrityCheck(batch_id: str, lang: str = "ko") -> dict:
     """
     정합성 검사 - crawl_cnt vs save_cnt 비교
     - diff = 0  : 정상
@@ -60,7 +60,7 @@ def run_integrity_check(batch_id: str, lang: str = "ko") -> dict:
     }
 
 
-def compare_urls(batch_id: str, lang: str = "ko") -> dict:
+def compareUrls(batch_id: str, lang: str = "ko") -> dict:
     """
     URL 집합 비교로 누락 URL 특정
     - 크롤링 시도한 URL 집합 (로그에서 추출)
@@ -103,11 +103,11 @@ def compare_urls(batch_id: str, lang: str = "ko") -> dict:
     }
 
 
-def recollect_missing(batch_id: str, lang: str = "ko") -> dict:
+def recollectMissing(batch_id: str, lang: str = "ko") -> dict:
     """누락 URL 재수집"""
-    from service.crawlSvc import run_crawl_batch
+    from service.crawlSvc import runCrawlBatch
 
-    result       = compare_urls(batch_id=batch_id, lang=lang)
+    result       = compareUrls(batch_id=batch_id, lang=lang)
     missing_urls = result["missing_urls"]
 
     if not missing_urls:
@@ -117,10 +117,10 @@ def recollect_missing(batch_id: str, lang: str = "ko") -> dict:
     logger.info("누락 URL 재수집 시작", extra={
         "batch_id": batch_id, "missing_cnt": len(missing_urls)
     })
-    return run_crawl_batch(urls=missing_urls, lang=lang)
+    return runCrawlBatch(urls=missing_urls, lang=lang)
 
 
-def get_index_status() -> dict:
+def getIndexStatus() -> dict:
     """
     전체 인덱스 현황 조회
     - esCon UI 인덱스 현황 테이블 처리

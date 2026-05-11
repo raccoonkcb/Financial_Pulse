@@ -4,12 +4,12 @@ from datetime import datetime, timezone
 from elasticsearch.helpers import scan
 from dataStorage.elasticSearch.es import getEs
 from model.logModel import LogSearchRequest
-from service.logSvc import search_log
-from logs.logger import get_logger
+from service.logSvc import searchLog
+from logs.logger import getLogger
 
-logger = get_logger("system")
+logger = getLogger("system")
 
-async def stream_logs(subject: str = None):
+async def streamLogs(subject: str = None):
     """
     SSE - 실시간 로그 스트리밍
     - 2초마다 새 로그 조회하여 클라이언트에 전송
@@ -20,7 +20,7 @@ async def stream_logs(subject: str = None):
 
     while True:
         req    = LogSearchRequest(subject=subject, start_time=last_timestamp, size=100)
-        result = search_log(req)
+        result = searchLog(req)
 
         for log in result["logs"]:
             last_timestamp = log["timestamp"]
@@ -29,7 +29,7 @@ async def stream_logs(subject: str = None):
         await asyncio.sleep(2)
 
 
-def archive_logs(index: str, before_date: str) -> dict:
+def archiveLogs(index: str, before_date: str) -> dict:
     """
     오래된 로그 아카이빙
     1. before_date 이전 로그 전체 추출

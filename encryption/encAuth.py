@@ -1,10 +1,10 @@
 from fastapi import Header, HTTPException, status
 from encBase import ADMIN_API_KEY
-from logs.logger import get_logger
+from logs.logger import getLogger
 
-logger = get_logger("user")
+logger = getLogger("user")
 
-def verify_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
+def verifyApiKey(x_api_key: str = Header(..., alias="X-API-Key")):
     """
     API Key 검증 의존성 함수
     - 요청 헤더의 X-API-Key 값 검증

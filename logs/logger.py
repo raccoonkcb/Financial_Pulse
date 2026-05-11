@@ -63,7 +63,7 @@ class ESHandler(logging.Handler):
 
 
 # ================================================================
-def get_logger(subject: str) -> logging.Logger:
+def getLogger(subject: str) -> logging.Logger:
     """ 서비스별 로거 생성 (subject별 로거 생성)
     - 콘솔 핸들러 + ES 핸들러 동시 등록
     - 동일 subject 로거는 재사용 (중복 핸들러 방지)
