@@ -79,6 +79,6 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
 # ================================================================
 # 라우터 등록
 # ================================================================
-from router.membershipRouter import router as membershipRouter
+from router.memberRouter import router as memberRouter
 
-app.include_router(membershipRouter)
+app.include_router(memberRouter)
