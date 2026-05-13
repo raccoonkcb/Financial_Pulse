@@ -4,17 +4,17 @@ uvicorn
 pandas
 requests
 itsdangerous
-pydantic[email]
 
 # 저장소
 elasticsearch
 pymysql
 sqlalchemy
-# pydantic
+pydantic[email]
 
 # 암호화
 argon2-cffi
 python-dotenv
+passlib[bcrypt]
 
 # 크롤링
 beautifulsoup4

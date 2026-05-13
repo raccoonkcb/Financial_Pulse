@@ -60,10 +60,10 @@ def createTables():
                 cursor.execute(query)
 
             conn.commit()
-            logger.info("DB Table Successfully Created")
+            logger.error("DB: 생성 완료", extra={"action": "db"})
 
     except Exception as e:
-        logger.error(f"{e}")
+        logger.error(f"DB: 생성 실패({e})", extra={"action": "db", "err_msg": str(e)})
     finally:
         conn.close()
 
