@@ -21,8 +21,6 @@ GET /api/spike?lang=ko
 }
 """
 
-from datetime import date, timedelta
-
 from fastapi import APIRouter, HTTPException
 
 from dataStorage.elasticSearch.es import getEs, ANALYZE_DATA_IDX, NEWS_KO_IDX, NEWS_EN_IDX
@@ -36,11 +34,17 @@ router = APIRouter(prefix="/api", tags=["spike"])
 # 공통 유틸
 # ================================================================
 def calcSectorRatios(buckets: list) -> dict:
-    """sector × tendency_breakdown → { sector: { pos, neg, neu, total } }"""
+    """
+    ES sector × tendency 집계 결과 → 섹터별 긍/부정 비율 딕셔너리 변환
+    buckets  : ES sector_breakdown.buckets
+    처리      : 섹터명 한글 변환(translateSector) + 긍/부정 비율 계산
+    반환      : { "IT/기술": { pos, neg, total, _pos_count, _neg_count }, ... }
+    _pos/neg_count : buildOverall() 전체 합산용 내부 값 (응답 미포함)
+    """
     result = {}
     for b in buckets:
         sector = b.get("key", "")
-        counts = {"positive": 0, "negative": 0, "neutral": 0}
+        counts = {"positive": 0, "negative": 0}
         for td in b.get("tendency_breakdown", {}).get("buckets", []):
             if td["key"] in counts:
                 counts[td["key"]] = td["doc_count"]
@@ -60,7 +64,14 @@ def calcSectorRatios(buckets: list) -> dict:
 # ES msearch 쿼리 조립
 # ================================================================
 def buildMsearch(doc_ids_today: list, doc_ids_week: list) -> list:
-    """쿼리 A, B, C"""
+    """급등 기사 분석에 필요한 ES msearch 쿼리 목록 생성
+    쿼리 순서     : A B C
+    A : 오늘 sector × tendency       → 1번(종합 성향), 2번(변화량)
+    B : 7일  sector × tendency       → 2번(평소 대비 비교)
+    C : 오늘 섹터별 기사 Top5         → 3번(급등 기사 목록)
+    doc_ids_today : 오늘 날짜 기사의 doc_id 목록
+    doc_ids_week  : 최근 7일 기사의 doc_id 목록
+    반환           : [ {헤더}, {바디}, ... ] msearch 형식 리스트"""
     filter_today = [{"terms": {"doc_id": doc_ids_today}}]
     filter_week  = [{"terms": {"doc_id": doc_ids_week}}]
 
@@ -115,7 +126,13 @@ def buildMsearch(doc_ids_today: list, doc_ids_week: list) -> list:
 # 번호별 조립 함수
 # ================================================================
 def buildOverall(res_a: dict) -> dict:
-    """1번 — 급등 기사 종합 성향"""
+    """
+    급등 기사 종합 성향 반환 (1번)
+    res_a   : msearch 쿼리 A 응답 (오늘 sector × tendency)
+    처리     : 전체 섹터 긍/부정 합산 → 전체 비율 계산
+    반환     : overall { pos, neg, total, by_sector }, today_ratios (buildSectorChanges 전달용)
+    사용처   : spike.html 상단 종합 점수 + 긍/부정 막대
+    """
     buckets      = res_a.get("aggregations", {}).get("sector_breakdown", {}).get("buckets", [])
     today_ratios = calcSectorRatios(buckets)
 
@@ -144,7 +161,18 @@ def buildOverall(res_a: dict) -> dict:
 
 def buildSectorChanges(today_ratios: dict, res_b: dict, res_c: dict,
                        es=None, news_index: str = None) -> list:
-    """2번 + 3번 — 섹터별 긍/부정률 변화 + 급등 기사 병합"""
+    """
+    섹터별 긍/부정률 변화(2번) + 급등 기사 목록(3번) 병합 반환
+    today_ratios : buildOverall() 에서 받은 오늘 섹터별 비율
+    res_b        : msearch 쿼리 B 응답 (7일 sector × tendency)
+    res_c        : msearch 쿼리 C 응답 (오늘 섹터별 기사 Top5)
+    es           : ES 클라이언트 (news_ko/en url 보강용)
+    news_index   : news_ko 또는 news_en
+    정렬          : abs(pos 변화량) 내림차순
+    반환          : [ { sector, today, week_avg, change, articles }, ... ]
+    주의          : es.get() 사용 → 반드시 try 블록 안(es.close() 전)에서 호출
+    사용처        : spike.html 섹터 카드 클릭 → 해당 섹터 기사 목록
+    """
 
     # 7일 섹터 비율
     week_buckets = res_b.get("aggregations", {}).get("sector_breakdown", {}).get("buckets", [])
@@ -173,7 +201,7 @@ def buildSectorChanges(today_ratios: dict, res_b: dict, res_c: dict,
     # 2번 변화량 계산 후 3번 기사 병합
     sector_changes = []
     for sector, today in today_ratios.items():
-        week         = week_ratios.get(sector, {"pos": 0.0, "neg": 0.0, "neu": 0.0, "total": 0})
+        week         = week_ratios.get(sector, {"pos": 0.0, "neg": 0.0, "total": 0})
         week_avg_total = round(week["total"] / 7, 1)
 
         sector_changes.append({
@@ -205,6 +233,16 @@ def buildSectorChanges(today_ratios: dict, res_b: dict, res_c: dict,
 # ================================================================
 @router.get("/spike")
 def getSpikeReport(lang: str = "ko"):
+    """
+    급등 기사 분석 전체 데이터 조회
+    GET /api/spike?lang=ko  (lang=en → 미국 기사 조회)
+    데이터 소스 : ES analyze (msearch A~C)
+    처리 순서   : news doc_id 수집 → msearch → buildOverall → buildSectorChanges
+    반환        : overall, sector_changes
+    주의 : buildSectorChanges 는 es 직접 사용
+           → 반드시 try 블록 안(es.close() 전)에서 호출
+           today/week_ago 는 테스트용 고정값 → 운영 시 date.today() 로 교체
+    """
     today    = "2026-03-31"
     week_ago = "2026-03-24"
 
@@ -213,6 +251,13 @@ def getSpikeReport(lang: str = "ko"):
     try:
         doc_ids_today = getDocIds(es, news_index, today, today)
         doc_ids_week  = getDocIds(es, news_index, week_ago, today)
+
+        if not doc_ids_today:
+            logger.warning("오늘 기사 없음 — 빈 데이터 반환", extra={
+                "action": "doc_ids_empty",
+                "index" : news_index,
+                "date"  : today,
+            })
 
         searches  = buildMsearch(doc_ids_today, doc_ids_week)
         ms_result = es.msearch(index=ANALYZE_DATA_IDX, body=searches)
@@ -229,12 +274,21 @@ def getSpikeReport(lang: str = "ko"):
                                             es=es, news_index=news_index)
 
     except Exception as e:
-        logger.error(f"ES 조회 오류: {e}")
+        logger.error("급등 기사 분석 조회 오류", extra={
+            "action" : "spike_fetch_fail",
+            "lang"   : lang,
+            "err_msg": str(e),
+        })
         raise HTTPException(status_code=500, detail="데이터 조회 중 오류가 발생했습니다.")
     finally:
-        es.close()   # ← 조립 완료 후 닫힘
+        es.close()
 
-    logger.info("급등 기사 분석 조회 성공", extra={"lang": lang, "date": today})
+    logger.info("급등 기사 분석 조회 성공", extra={
+        "action"      : "spike_fetch",
+        "lang"        : lang,
+        "date"        : today,
+        "sector_cnt"  : len(sector_changes),
+    })
 
     return ok("급등 기사 분석 조회 성공", {
         "overall"       : overall,

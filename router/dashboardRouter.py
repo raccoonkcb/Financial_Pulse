@@ -38,14 +38,16 @@ SCHEDULE_CSV = "korea_schedule.csv"
 # 공통 유틸
 # ================================================================
 def calcRatios(buckets: list) -> dict:
-    """tendency buckets → { pos, neg, neu, total }"""
-    counts = {"positive": 0, "negative": 0, "neutral": 0}
+    """
+    ES tendency 집계 결과 → 긍/부정 비율 딕셔너리 변환
+    tendency buckets → { pos, neg, total }"""
+    counts = {"positive": 0, "negative": 0}
     for b in buckets:
         if b.get("key") in counts:
             counts[b["key"]] = b.get("doc_count", 0)
     total = sum(counts.values())
     if total == 0:
-        return {"pos": 0.0, "neg": 0.0, "neu": 0.0, "total": 0}
+        return {"pos": 0.0, "neg": 0.0, "total": 0}
     return {
         "pos"  : round(counts["positive"] / total * 100, 1),
         "neg"  : round(counts["negative"] / total * 100, 1),
@@ -54,7 +56,9 @@ def calcRatios(buckets: list) -> dict:
 
 
 def calcSectorRatios(buckets: list) -> dict:
-    """sector × tendency_breakdown → { sector: { pos, neg, neu, total } }"""
+    """
+    ES sector × tendency 집계 결과 → 섹터별 긍/부정 비율 딕셔너리 변환
+    sector × tendency_breakdown → { sector: { pos, neg, total } }"""
     result = {}
     for b in buckets:
         sector  = b.get("key", "")
@@ -66,6 +70,11 @@ def calcSectorRatios(buckets: list) -> dict:
 
 
 def tendencyLabel(pos: float, neg: float) -> str:
+    """
+    긍정/부정 비율을 비교해 전체 분위기 라벨 반환
+    pos >= neg → "긍정"
+    neg >  pos → "부정"
+    """
     return "긍정" if pos >= neg else "부정"
 
 
@@ -74,6 +83,7 @@ def tendencyLabel(pos: float, neg: float) -> str:
 # ================================================================
 def buildMsearch(doc_ids_today: list, doc_ids_week: list) -> list:
     """
+    대시보드에 필요한 ES msearch 쿼리 목록 생성
     msearch body 리스트 반환 (헤더 + 바디 쌍)
     쿼리 순서: A B C D E F G
     doc_ids_today/week : news_ko/en 에서 미리 수집한 doc_id 목록
@@ -135,16 +145,20 @@ def buildMsearch(doc_ids_today: list, doc_ids_week: list) -> list:
 # 번호별 조립 함수
 # ================================================================
 def buildTendency(res_a: dict):
-    """1번 tendency + 7번 market_tendency"""
+    """
+    오늘 전체 분위기(1번) + 시장 전체 성향 비율(7번) 동시 생성
+    res_a      : msearch 쿼리 A 응답 (오늘 tendency 집계)
+    tendency        → { pos, neg, total, label }  대시보드 상단 메트릭 카드
+    market_tendency → { pos, neg, total, pos_count, neg_count }  도넛 차트용"""
     buckets = res_a.get("aggregations", {}).get("tendency", {}).get("buckets", [])
-    counts  = {"positive": 0, "negative": 0, "neutral": 0}
+    counts  = {"positive": 0, "negative": 0}
     for b in buckets:
         if b["key"] in counts:
             counts[b["key"]] = b["doc_count"]
     total = sum(counts.values())
 
     if total == 0:
-        base = {"pos": 0.0, "neg": 0.0, "neu": 0.0, "total": 0}
+        base = {"pos": 0.0, "neg": 0.0, "total": 0}
     else:
         base = {
             "pos"  : round(counts["positive"] / total * 100, 1),
@@ -160,7 +174,13 @@ def buildTendency(res_a: dict):
 
 
 def buildTopKeyword(res_b: dict) -> dict:
-    """2번 — 노출도 1위 키워드"""
+    """
+    오늘 노출도 1위 키워드 반환 (2번)
+
+    res_b   : msearch 쿼리 B 응답 (오늘 keyword 집계)
+    반환     : { keyword, count }
+    사용처   : 대시보드 상단 "노출도 1위 키워드" 메트릭 카드
+    """
     buckets = res_b.get("aggregations", {}).get("keywords", {}).get("buckets", [])
     if not buckets:
         return {"keyword": None, "count": 0}
@@ -168,7 +188,15 @@ def buildTopKeyword(res_b: dict) -> dict:
 
 
 def buildPosNegKeyword(res_d: dict, res_e: dict, total: int):
-    """3번 긍정 / 4번 부정 1위 키워드"""
+    """
+    오늘 긍정 1위(3번) + 부정 1위(4번) 키워드 동시 반환
+
+    res_d   : msearch 쿼리 D 응답 (오늘 긍정 기사 keyword 1위)
+    res_e   : msearch 쿼리 E 응답 (오늘 부정 기사 keyword 1위)
+    total   : 오늘 전체 기사 수 (ratio 계산용)
+    반환     : pos_keyword, neg_keyword → { keyword, count, ratio }
+    사용처   : 대시보드 상단 긍정/부정 1위 키워드 메트릭 카드
+    """
     def extract(res):
         bkts = res.get("aggregations", {}).get("keywords", {}).get("buckets", [])
         if not bkts:
@@ -180,7 +208,16 @@ def buildPosNegKeyword(res_d: dict, res_e: dict, total: int):
 
 
 def buildHotIssues(res_b: dict, res_c: dict) -> list:
-    """5번 — 오늘의 핫이슈 (변화량 상위 6개, 10% 이상)"""
+    """
+    오늘의 핫이슈 키워드 목록 반환 (5번)
+
+    res_b   : msearch 쿼리 B 응답 (오늘 keyword 집계)
+    res_c   : msearch 쿼리 C 응답 (7일  keyword 집계)
+    조건     : 7일 평균 대비 오늘 언급량 10% 이상 급등한 키워드
+    정렬     : 변화량 내림차순
+    반환     : [ { keyword, count, week_avg, change }, ... ] 최대 6개
+    사용처   : 대시보드 "오늘의 핫이슈" 패널
+    """
     today_map = {b["key"]: b["doc_count"]
                  for b in res_b.get("aggregations", {}).get("keywords", {}).get("buckets", [])}
     week_map  = {b["key"]: b["doc_count"] / 7
@@ -205,7 +242,15 @@ def buildHotIssues(res_b: dict, res_c: dict) -> list:
 
 
 def buildSpikeAndSector(res_f: dict, res_g: dict):
-    """6번 spike_analysis + 8번 sector_tendency"""
+    """
+    급등 기사 성향 분석(6번) + 섹터별 긍/부정 비율(8번) 동시 생성
+
+    res_f          : msearch 쿼리 F 응답 (오늘 sector × tendency)
+    res_g          : msearch 쿼리 G 응답 (7일  sector × tendency)
+    spike_analysis → 오늘 vs 7일 평균 변화량, abs(pos변화량) 내림차순
+    sector_tendency→ 오늘 섹터별 긍/부정 비율
+    사용처          : 대시보드 급등 분석 패널, 섹터별 스택 바 차트
+    """
     today_ratios = calcSectorRatios(
         res_f.get("aggregations", {}).get("sector_breakdown", {}).get("buckets", [])
     )
@@ -239,7 +284,7 @@ def buildSpikeAndSector(res_f: dict, res_g: dict):
 # ================================================================
 def getEcoIndicators() -> list:
     """
-    economicIndicator 테이블에서 고정 8개 지표 최신값 조회
+    경제지표 테이블에서 한국/미국 주요 지표 최신값 조회 (9번)
     """
     INDICATORS = [
         ("대한민국", "경상수지",             "경상수지 (전월비)"),
@@ -249,7 +294,7 @@ def getEcoIndicators() -> list:
         ("미국",     "비농업 고용수",         "비농업 고용 (전월비)"),
         ("미국",     "실업률",               "실업률 (전월비)"),
         ("미국",     "GDP 성장률",           "GDP 성장률(전분기비)"),
-        ("미국",     "소비자물가지수 (CPI)", "CPI"),
+        ("미국",     "소비자물가지수 (CPI)", "소비자물가지수 (전분기비)"),
     ]
 
     conn   = getConn()
@@ -282,6 +327,7 @@ def getEcoIndicators() -> list:
 # 10번 — 경제 일정 (CSV)
 # ================================================================
 def getEcoSchedule() -> list:
+    """경제 주요 일정 CSV 파일 읽기 (10번)"""
     try:
         df = pd.read_csv(SCHEDULE_CSV, encoding="utf-8-sig")
         df = df.where(pd.notnull(df), None)
@@ -300,7 +346,8 @@ def getEcoSchedule() -> list:
 @router.get("/dashboard")
 def getDashboard(lang: str = "ko"):
     """
-    GET /api/dashboard?lang=ko
+    대시보드 전체 데이터 조회
+    GET /api/dashboard?lang=ko  (lang=en 으로 미국 기사 조회 가능)
     ES msearch 1번 왕복 + DB + CSV → JSON 한 방 반환
     """
     # today    = date.today().isoformat()
@@ -315,6 +362,13 @@ def getDashboard(lang: str = "ko"):
         doc_ids_today = getDocIds(es, news_index, today, today)
         doc_ids_week  = getDocIds(es, news_index, week_ago, today)
 
+        if not doc_ids_today:
+            logger.warning("오늘 기사 없음 — 빈 데이터 반환", extra={
+                "action": "doc_ids_empty",
+                "index" : news_index,
+                "date"  : today,
+            })
+
         searches  = buildMsearch(doc_ids_today, doc_ids_week)
         ms_result = es.msearch(index=ANALYZE_DATA_IDX, body=searches)
         responses = ms_result.get("responses", [])
@@ -325,7 +379,11 @@ def getDashboard(lang: str = "ko"):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        logger.error(f"ES 조회 오류: {e}")
+        logger.error("대시보드 조회 오류", extra={
+            "action" : "dashboard_fetch_fail",
+            "lang"   : lang,
+            "err_msg": str(e),
+        })
         raise HTTPException(status_code=500, detail="데이터 조회 중 오류가 발생했습니다.")
     finally:
         es.close()
@@ -341,7 +399,12 @@ def getDashboard(lang: str = "ko"):
     eco_indicators               = getEcoIndicators()
     eco_schedule                 = getEcoSchedule()
 
-    logger.info("대시보드 조회 성공", extra={"lang": lang, "date": today})
+    logger.info("대시보드 조회 성공", extra={
+        "action": "dashboard_fetch",
+        "lang"  : lang,
+        "date"  : today,
+        "total" : tendency.get("total", 0),
+    })
 
     return ok("대시보드 조회 성공", {
         "tendency"       : tendency,

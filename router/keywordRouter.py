@@ -18,7 +18,6 @@ GET /api/keyword?lang=ko
 }
 """
 
-from datetime import date, timedelta
 from itertools import combinations
 
 from fastapi import APIRouter, HTTPException
@@ -34,7 +33,7 @@ router = APIRouter(prefix="/api", tags=["keyword"])
 # ================================================================
 def buildMsearch(doc_ids_today: list, doc_ids_week: list, top20_words: list) -> list:
     """
-    쿼리 5개 (A B C D E)
+    키워드 트렌드에 필요한 ES msearch 쿼리 목록 생성
     doc_ids_today/week : news_ko/en 에서 미리 수집한 doc_id 목록
     top20_words        : 쿼리 D·E 에서 필터로 사용할 Top20 키워드
     """
@@ -109,6 +108,12 @@ def buildMsearch(doc_ids_today: list, doc_ids_week: list, top20_words: list) -> 
 # 번호별 조립 함수
 # ================================================================
 def buildTop7(res_a: dict, res_b: dict) -> list:
+    """오늘의 키워드 Top7 반환 (1번)
+    res_a   : msearch 쿼리 A 응답 (오늘 keyword 집계)
+    res_b   : msearch 쿼리 B 응답 (현재 미사용)
+    정렬     : 금일 언급량 내림차순
+    반환     : [ { rank, keyword, count }, ... ] 최대 7개
+    """
     buckets = res_a.get("aggregations", {}).get("keywords", {}).get("buckets", [])
 
     ranked = [
@@ -125,7 +130,7 @@ def buildTop7(res_a: dict, res_b: dict) -> list:
 
 def buildStrength(res_e: dict, top7_words: list, total_map: dict) -> dict:
     """
-    2번 — 연관 강도 계기판
+    Top7 키워드별 연관 강도 계기판 데이터 생성 (2번)
     top7_words : Top7 키워드 리스트
     total_map  : { keyword: today_count }
     반환: { keyword: { total, strongest, related: [...] } }
@@ -162,8 +167,14 @@ def buildStrength(res_e: dict, top7_words: list, total_map: dict) -> dict:
 
 def buildWeeklyTrend(res_a: dict, res_c: dict, es, news_index: str, today: str, week_ago: str) -> dict:
     """
-    3번 — 주간 트렌드 추이 (Top5 키워드 × 7일)
-    analyze에 published_at 없으므로 날짜별로 news_ko/en → doc_id 수집 후 각 날짜 키워드 집계
+    Top5 키워드 × 7일 주간 트렌드 추이 생성 (3번)
+    res_a      : msearch 쿼리 A 응답 (Top5 키워드 확정용)
+    es         : ES 클라이언트 (날짜별 추가 조회용)
+    news_index : news_ko 또는 news_en
+    처리        : 날짜별 news doc_id 수집 → analyze keyword 집계 (최대 7회 추가 조회)
+    반환        : { dates: [...], lines: [ { keyword, data: [...] }, ... ] }
+    주의        : es 객체 직접 사용 → 반드시 try 블록 안(es.close() 전)에서 호출
+    사용처      : keyword.html "주요 키워드 주간 트렌드" 라인 차트
     """
     from datetime import datetime, timedelta as td
 
@@ -208,7 +219,15 @@ def buildWeeklyTrend(res_a: dict, res_c: dict, es, news_index: str, today: str, 
 
 
 def buildNetwork(res_a: dict, res_d: dict) -> dict:
-    """4번 — 키워드 네트워크 (공출현 계산)"""
+    """
+    키워드 네트워크 (공출현 기반) 생성 (4번)
+    res_a   : msearch 쿼리 A 응답 (오늘 Top20 키워드 + 언급량)
+    res_d   : msearch 쿼리 D 응답 (Top20 포함 기사의 keywords 배열)
+    처리     : combinations 으로 키워드 쌍 공출현 카운트 → 2회 미만 제거
+    반환     : { nodes: [ { keyword, count } ], edges: [ { source, target, weight } ] }
+    weight  : 두 키워드가 같은 기사에 함께 등장한 횟수
+    사용처   : keyword.html "키워드 네트워크" 물리 시뮬레이션 캔버스
+    """
     top20_map = {
         b["key"]: b["doc_count"]
         for b in res_a.get("aggregations", {}).get("keywords", {}).get("buckets", [])[:20]
@@ -240,6 +259,18 @@ def buildNetwork(res_a: dict, res_d: dict) -> dict:
 
 
 def buildHotNews(res_e: dict, top7: list, strength_map: dict, es=None, news_index: str = None) -> list:
+    """
+    Top7 키워드별 최신 핫뉴스 + 연관 강도 병합 (5번)
+
+    res_e        : msearch 쿼리 E 응답 (keyword별 최신 기사 1건)
+    top7         : buildTop7() 결과 (Top7 순서 유지용)
+    strength_map : buildStrength() 결과 (연관 강도 데이터)
+    es           : ES 클라이언트 (news_ko/en url 보강용)
+    news_index   : news_ko 또는 news_en
+    반환          : [ { keyword, article: { title, tendency, tend_score, url }, strength }, ... ]
+    주의          : es.get() 사용 → 반드시 try 블록 안(es.close() 전)에서 호출
+    사용처        : keyword.html 하단 "최신 핫이슈 뉴스" 카드
+    """
     article_map = {}
     for b in res_e.get("aggregations", {}).get("by_keyword", {}).get("buckets", []):
         kw   = b["key"]
@@ -275,8 +306,17 @@ def buildHotNews(res_e: dict, top7: list, strength_map: dict, es=None, news_inde
 @router.get("/keyword")
 def getKeywordTrend(lang: str = "ko"):
     """
-    GET /api/keyword?lang=ko
-    ES msearch 1번 왕복 → JSON 한 방 반환
+    키워드 트렌드 전체 데이터 조회
+
+    GET /api/keyword?lang=ko  (lang=en → 미국 기사 조회)
+
+    데이터 소스 : ES analyze (msearch A~E) + 날짜별 추가 조회 (최대 7회)
+    처리 순서   : news doc_id 수집 → msearch → Top7 → 강도/트렌드/네트워크/핫뉴스 조립
+    반환        : top7, weekly_trend, keyword_network, hot_news
+
+    주의 : buildWeeklyTrend, buildHotNews 는 es 직접 사용
+           → 반드시 try 블록 안(es.close() 전)에서 호출
+           today/week_ago 는 테스트용 고정값 → 운영 시 date.today() 로 교체
     """
     # today    = date.today().isoformat()
     # week_ago = (date.today() - timedelta(days=7)).isoformat()
@@ -288,6 +328,13 @@ def getKeywordTrend(lang: str = "ko"):
     try:
         doc_ids_today = getDocIds(es, news_index, today, today)
         doc_ids_week  = getDocIds(es, news_index, week_ago, today)
+
+        if not doc_ids_today:
+            logger.warning("오늘 기사 없음 — 빈 데이터 반환", extra={
+                "action": "doc_ids_empty",
+                "index" : news_index,
+                "date"  : today,
+            })
 
         searches  = buildMsearch(doc_ids_today, doc_ids_week, top20_words=[])
         ms_result = es.msearch(index=ANALYZE_DATA_IDX, body=searches)
@@ -312,12 +359,21 @@ def getKeywordTrend(lang: str = "ko"):
         hot_news = buildHotNews(res_e, top7, strength_map, es=es, news_index=news_index)
 
     except Exception as e:
-        logger.error(f"ES 조회 오류: {e}")
+        logger.error("키워드 트렌드 조회 오류", extra={
+            "action" : "keyword_fetch_fail",
+            "lang"   : lang,
+            "err_msg": str(e),
+        })
         raise HTTPException(status_code=500, detail="데이터 조회 중 오류가 발생했습니다.")
     finally:
         es.close()
 
-    logger.info("키워드 트렌드 조회 성공", extra={"lang": lang, "date": today})
+    logger.info("키워드 트렌드 조회 성공", extra={
+        "action"  : "keyword_fetch",
+        "lang"    : lang,
+        "date"    : today,
+        "top7_cnt": len(top7),
+    })
 
     return ok("키워드 트렌드 조회 성공", {
         "top7"            : top7,

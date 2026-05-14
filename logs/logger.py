@@ -1,7 +1,9 @@
 import uuid
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from elasticsearch.helpers import bulk
+
+KST = timezone(timedelta(hours=9))
 
 # ================================================================
 # ES Handler - logging 모듈과 ES를 연결하는 커스텀 핸들러
@@ -26,7 +28,7 @@ class ESHandler(logging.Handler):
 
             es = getEs()
             log_id = str(uuid.uuid4())
-            timestamp = datetime.now(timezone.utc).isoformat()
+            timestamp = datetime.now(KST).isoformat()
 
             # extra 필드 추출
             # logging.LogRecord에 기본으로 붙는 필드 제거
