@@ -46,6 +46,7 @@ from router.dashboardRouter import router as dashboardRouter
 from router.keywordRouter import router as keywordRouter
 from router.spikeRouter import router as spikeRouter
 from router.searchRouter import router as searchRouter
+from router.adminRouter import router as adminRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
@@ -105,5 +106,6 @@ app.include_router(dashboardRouter)
 app.include_router(keywordRouter)
 app.include_router(spikeRouter)
 app.include_router(searchRouter)
+app.include_router(adminRouter)
 
 app.mount("/", StaticFiles(directory="view"), name="static")

@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse
 from model.correctionModel import CorrectionRequest, ExportRequest
 from service.correctionSvc import detectIrregular, applyCorrection, deleteArticle, exportCorrections
-from encryption.encAuth import verifyApiKey
+from encryption.encAuth import verify_admin
 
 router = APIRouter(prefix="/correction", tags=["correction"])
 
 @router.get("/detect")
-def detect(api_key=Depends(verifyApiKey)):
+def detect(api_key=Depends(verify_admin)):
     """
     비정형 감지
     - 인증 필요 이유: 내부 ML 분석 데이터 보호
@@ -15,7 +15,7 @@ def detect(api_key=Depends(verifyApiKey)):
     return detectIrregular()
 
 @router.post("/apply")
-def apply(req: CorrectionRequest, api_key=Depends(verifyApiKey)):
+def apply(req: CorrectionRequest, api_key=Depends(verify_admin)):
     """
     보정 확정
     - 인증 필요 이유: 데이터 직접 수정 작업
@@ -27,7 +27,7 @@ def apply(req: CorrectionRequest, api_key=Depends(verifyApiKey)):
     )
 
 @router.delete("/article/{doc_id}")
-def delete(doc_id: str, api_key=Depends(verifyApiKey)):
+def delete(doc_id: str, api_key=Depends(verify_admin)):
     """
     기사 삭제
     - 인증 필요 이유: 데이터 영구 삭제 작업
@@ -36,7 +36,7 @@ def delete(doc_id: str, api_key=Depends(verifyApiKey)):
     return deleteArticle(doc_id=doc_id)
 
 @router.post("/export")
-def export(req: ExportRequest, api_key=Depends(verifyApiKey)):
+def export(req: ExportRequest, api_key=Depends(verify_admin)):
     """
     학습 데이터 내보내기
     - 인증 필요 이유: ML 학습 데이터 외부 유출 방지

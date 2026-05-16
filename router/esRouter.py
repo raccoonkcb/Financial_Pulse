@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends
 from model.esModel import IntegrityCheckRequest, CompareUrlRequest
 from service.esSvc import getMissingUrl, recollectMissing, getIndexStatus # , runIntegrityCheck
-from encryption.encAuth import verifyApiKey
+from encryption.encAuth import verify_admin
 
 router = APIRouter(prefix="/es", tags=["es"])
 
 @router.get("/status")
-def status(api_key=Depends(verifyApiKey)):
+def status(api_key=Depends(verify_admin)):
     """
     전체 인덱스 현황
     - 인증 필요 이유: ES 내부 데이터 구조 보호
@@ -14,7 +14,7 @@ def status(api_key=Depends(verifyApiKey)):
     return getIndexStatus()
 
 # @router.post("/integrity")
-# def integrity(req: IntegrityCheckRequest, api_key=Depends(verifyApiKey)):
+# def integrity(req: IntegrityCheckRequest, api_key=Depends(verify_admin)):
 #     """
 #     정합성 검사
 #     - 인증 필요 이유: 내부 데이터 정합성 정보 보호
@@ -22,7 +22,7 @@ def status(api_key=Depends(verifyApiKey)):
 #     return runIntegrityCheck(batch_id=req.batch_id, lang=req.lang)
 
 @router.post("/compare")
-def compare(req: CompareUrlRequest, api_key=Depends(verifyApiKey)):
+def compare(req: CompareUrlRequest, api_key=Depends(verify_admin)):
     """
     누락 URL 목록 조회
     - esCon 누락 URL 목록 테이블 처리
@@ -30,7 +30,7 @@ def compare(req: CompareUrlRequest, api_key=Depends(verifyApiKey)):
     return getMissingUrl(batch_id=req.batch_id, lang=req.lang)
 
 @router.post("/recollect")
-def recollect(req: CompareUrlRequest, api_key=Depends(verifyApiKey)):
+def recollect(req: CompareUrlRequest, api_key=Depends(verify_admin)):
     """
     누락 URL 재수집
     - 인증 필요 이유: 서버 리소스 소모 작업

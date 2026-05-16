@@ -4,17 +4,17 @@ from model.logModel import LogSearchRequest
 from model.logArchiveModel import ArchiveRequest
 from service.logSvc import searchLog, exportLogCsv, getLogSummary
 from service.logArchiveSvc import streamLogs, archiveLogs
-from encryption.encAuth import verifyApiKey
+from encryption.encAuth import verify_admin
 
 router = APIRouter(prefix="/logs", tags=["logs"])
 
 @router.post("/search")
-def search(req: LogSearchRequest, api_key=Depends(verifyApiKey)):
+def search(req: LogSearchRequest, api_key=Depends(verify_admin)):
     """로그 조회 - logViewer 로그 목록 처리"""
     return searchLog(req)
 
 @router.post("/export")
-def export(req: LogSearchRequest, api_key=Depends(verifyApiKey)):
+def export(req: LogSearchRequest, api_key=Depends(verify_admin)):
     """CSV 내보내기 - logViewer CSV 내보내기 버튼 처리"""
     csv_data = exportLogCsv(req)
     return PlainTextResponse(
@@ -24,12 +24,12 @@ def export(req: LogSearchRequest, api_key=Depends(verifyApiKey)):
     )
 
 @router.get("/summary")
-def summary(subject: str = None, api_key=Depends(verifyApiKey)):
+def summary(subject: str = None, api_key=Depends(verify_admin)):
     """로그 집계 - logViewer 상단 집계 카드 처리"""
     return getLogSummary(subject=subject)
 
 @router.get("/stream")
-async def stream(subject: str = None, api_key=Depends(verifyApiKey)):
+async def stream(subject: str = None, api_key=Depends(verify_admin)):
     """실시간 로그 스트리밍 (SSE)"""
     return StreamingResponse(
         streamLogs(subject=subject),
@@ -37,6 +37,6 @@ async def stream(subject: str = None, api_key=Depends(verifyApiKey)):
     )
 
 @router.post("/archive")
-def archive(req: ArchiveRequest, api_key=Depends(verifyApiKey)):
+def archive(req: ArchiveRequest, api_key=Depends(verify_admin)):
     """로그 아카이빙 - before_date 이전 로그 파일 저장 후 ES 삭제"""
     return archiveLogs(index=req.index, before_date=req.before_date)
