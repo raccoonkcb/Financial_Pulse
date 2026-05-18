@@ -22,7 +22,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from dataStorage.mariaDb.db import getConn
-from crawling.actions.crawlUtil import managedDriver
+from crawling.utils.crawlerUtils import managedDriver
 from logs.logger import getLogger
 
 logger = getLogger("crawl")

@@ -53,7 +53,7 @@ class NewsCleaner:
         return text
 
     @staticmethod
-    def is_valid(text, title=""):
+    def isValid(text, title=""):
         # 서비스용 품질 검사 (기존 유지)
         stop_words = ["transcript", "earnings call", "live blog", "full text"]
         combined = (title + " " + (text if text else "")).lower()
@@ -123,7 +123,7 @@ class KoNewsCleaner:
         return text
 
     @staticmethod
-    def is_valid(text, title=""):
+    def isValid(text, title=""):
         # 한국어 전용 거름망 (생중계, 포토뉴스 등 제외)
         stop_words = ["생중계", "포토", "영상", "부고", "인사", "오늘의 운세", "녹취록"]
         combined = (title + " " + (text if text else "")).lower()

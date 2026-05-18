@@ -12,7 +12,7 @@ from elasticsearch import Elasticsearch
 from dateutil import parser
 
 # 유틸리티 로직 임포트 (좀비 프로세스 정리는 managed_driver 내부의 atexit 등이 담당)
-from utils.crawlerUtils import extract_content_with_js, generate_hash_id, managed_driver
+from utils.crawlerUtils import extractContentWithJs, generateHashId, managedDriver
 from utils.cleaningUtils import NewsCleaner
 
 # [설정]
@@ -35,15 +35,16 @@ total_processed_count = 0
 counter_lock = threading.Lock()
 
 
+
 # ---------------------------------------------------------------------------
 
-def process_batch(targets, thread_id, total_target_count, batch_collected_at):
+def processBatch(targets, thread_id, total_target_count, batch_collected_at):
     """기사 1건마다 ES에 즉시 적재 (뉴욕 시간 강제 변환 및 상대 시간 계산)"""
     global total_processed_count
     local_success_count = 0
 
     # managed_driver가 생성, 추적 리스트 등록, 종료(quit)를 모두 알아서 처리함
-    with managed_driver() as driver:
+    with managedDriver() as driver:
         for target in targets:
             try:
                 raw_pub = target.get('raw_published', '').strip()
@@ -98,7 +99,7 @@ def process_batch(targets, thread_id, total_target_count, batch_collected_at):
 
                 # 3. URL 정제 및 ID 생성
                 clean_url = target['url'].split('?')[0].split('#')[0].strip()
-                doc_id = generate_hash_id(clean_url, target['title'])
+                doc_id = generateHashId(clean_url, target['title'])
 
                 if es.exists(index=INDEX_NAME, id=doc_id):
                     continue
@@ -106,13 +107,13 @@ def process_batch(targets, thread_id, total_target_count, batch_collected_at):
                 # 4. 본문 수집
                 driver.get(target['url'])
                 time.sleep(3)
-                content = extract_content_with_js(driver, title=target['title'])
+                content = extractContentWithJs(driver, title=target['title'])
 
                 if not content or len(content.strip()) < 150:
                     continue
 
                 clean_content = NewsCleaner.clean(content)
-                if not NewsCleaner.is_valid(clean_content, target['title']):
+                if not NewsCleaner.isValid(clean_content, target['title']):
                     continue
 
                 # 5. 데이터 적재
@@ -196,7 +197,7 @@ def run_collector(start_str=None, end_str=None):
             chunk_size = (total_len // MAX_WORKERS) + 1
             chunks = [unique_targets[i:i + chunk_size] for i in range(0, total_len, chunk_size)]
             with ThreadPoolExecutor(max_workers=MAX_WORKERS) as exc:
-                futures = [exc.submit(process_batch, c, i, total_len, batch_collected_at) for i, c in enumerate(chunks)]
+                futures = [exc.submit(processBatch, c, i, total_len, batch_collected_at) for i, c in enumerate(chunks)]
                 for f in as_completed(futures): f.result()
 
         current += dt.timedelta(days=1)

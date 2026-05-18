@@ -21,7 +21,7 @@ beautifulsoup4
 selenium
 feedparser
 webdriver-manager
-#playwright
+apscheduler
 
 # 자연어 처리 및 전처리
 #python-dateutil

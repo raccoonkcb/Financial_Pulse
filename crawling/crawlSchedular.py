@@ -12,236 +12,152 @@ crawlSchedular.py
 영문   : ES news_en 인덱스
 경제지표: DB economicIndicator 테이블
 """
-
-import json
+import signal
+import sys
+import threading
 import time
-import uuid
-from datetime import datetime
+from functools import wraps
+from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta
 
-import requests
-import schedule
+from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
-import collectKoNews
-import collectEnNews
-from crawling.collectEconomic import dailyJob as runEconomicCrawl
-
-
-# ================================================================
-# 설정
-# ================================================================
-ES_HOST  = "http://100.88.143.23:9200"
-KO_INDEX = "news_ko"
-EN_INDEX = "news_en"
+from collectKoNews import run_standalone_ko
+from collectEnNews import run_collector
+from collectEconomic import dailyJob
+from logs.logger import getLogger
 
 KO_SCHEDULES = [
     ("07:30", "새벽 마감"),
     ("11:30", "오전 흐름"),
     ("18:30", "초판"),
     ("23:59", "하루 마감"),
-    ("09:40", "ko_test")
 ]
 
 EN_SCHEDULES = [
     ("06:10", "미국 장 마감·한국 장 개장 직전"),
     ("21:00", "미국 장 개장 직전"),
-    ("10:30","en_test")
 ]
 
-ECONOMIC_SCHEDULE = "23:30"
+ECONOMIC_SCHEDULE = ("23:30", "경제지표 수집")
+
+logger = getLogger("system")
 
 
-# ================================================================
-# ES 유틸
-# ================================================================
-def _ensure_index(index_name, use_nori=True):
-    """
-    인덱스 없으면 생성
+# =========================
+# Locks
+# =========================
+ko_lock = threading.Lock()
+en_lock = threading.Lock()
+eco_lock = threading.Lock()
 
-    index_name : ES 인덱스명
-    use_nori   : True → korean_analyzer, False → standard
-    """
-    url = f"{ES_HOST}/{index_name}"
-    if requests.head(url).status_code == 200:
-        print(f"[ES] '{index_name}' 인덱스 이미 존재")
-        return
 
-    analyzer = "korean" if use_nori else "standard"
-    settings = {"number_of_shards": 1, "number_of_replicas": 0}
+def guarded(lock, job_name):
+    def decorator(func):
+        @wraps(func)
+        def wrapper():
+            if lock.locked():
+                logger.warning(f"{job_name} already running. skipped.")
+                return
 
-    if use_nori:
-        settings["analysis"] = {
-            "analyzer": {
-                "korean": {
-                    "type"     : "custom",
-                    "tokenizer": "nori_tokenizer",
-                    "filter"   : ["lowercase"],
-                }
-            }
-        }
+            with lock:
+                start = time.time()
+                logger.info(f"{job_name} started")
 
-    mapping = {
-        "settings": settings,
-        "mappings": {
-            "properties": {
-                "doc_id"      : {"type": "keyword"},
-                "lang"        : {"type": "keyword"},
-                "url"         : {"type": "keyword"},
-                "title"       : {"type": "text", "analyzer": analyzer},
-                "content"     : {"type": "text", "analyzer": analyzer},
-                "published_at": {
-                    "type"  : "date",
-                    "format": "yyyy-MM-dd HH:mm:ss||strict_date_optional_time||epoch_millis"
-                },
-                "collected_at": {
-                    "type"  : "date",
-                    "format": "yyyy-MM-dd HH:mm:ss||strict_date_optional_time||epoch_millis"
-                },
-            }
-        },
+                try:
+                    func()
+                    elapsed = time.time() - start
+                    logger.info(f"{job_name} completed ({elapsed:.1f}s)")
+                except Exception as e:
+                    logger.exception(f"{job_name} failed: {e}")
+
+        return wrapper
+    return decorator
+
+
+# =========================
+# Wrapped Jobs
+# =========================
+@guarded(ko_lock, "KO Collector")
+def run_ko():
+    run_standalone_ko()
+
+
+@guarded(en_lock, "EN Collector")
+def run_en():
+    run_collector()
+
+
+@guarded(eco_lock, "Economic Collector")
+def run_eco():
+    dailyJob()
+
+
+# =========================
+# Scheduler
+# =========================
+scheduler = BlockingScheduler(
+    timezone=ZoneInfo("Asia/Seoul")
+)
+
+def add_jobs(test_mode=False):
+    job_defaults = {
+        'trigger': 'cron',
+        'max_instances': 1,
+        'coalesce': True,
+        'misfire_grace_time': 600
     }
 
-    res = requests.put(url, json=mapping)
-    if res.status_code in (200, 201):
-        print(f"[ES] '{index_name}' 인덱스 생성 완료")
+    # 1. 정기 스케줄 등록
+    # KO 뉴스
+    for t, label in [("07:30", "새벽"), ("11:30", "오전"), ("18:30", "초판"), ("23:59", "마감")]:
+        h, m = map(int, t.split(":"))
+        scheduler.add_job(run_ko, hour=h, minute=m, id=f"ko_{label}", **job_defaults)
+
+    # EN 뉴스
+    for t, label in [("06:10", "장마감"), ("21:00", "개장전")]:
+        h, m = map(int, t.split(":"))
+        scheduler.add_job(run_en, hour=h, minute=m, id=f"en_{label}", **job_defaults)
+
+    # 경제지표
+    scheduler.add_job(run_eco, hour=23, minute=30, id="eco_daily", **job_defaults)
+
+    # 2. 실시간 테스팅 모드 (실행 시 즉시 모든 작업 테스트)
+    if test_mode:
+        logger.info("testing: Run all collection operations once after 5 seconds.")
+        now = datetime.now(ZoneInfo("Asia/Seoul"))
+        scheduler.add_job(run_ko, trigger='date', run_date=now + timedelta(seconds=5), id='test_ko')
+        scheduler.add_job(run_en, trigger='date', run_date=now + timedelta(seconds=7), id='test_en')
+        scheduler.add_job(run_eco, trigger='date', run_date=now + timedelta(seconds=9), id='test_eco')
+
+
+
+def listener(event):
+    if event.exception:
+        logger.error(f"Job crashed: {event.job_id}")
     else:
-        print(f"[ES] '{index_name}' 인덱스 생성 실패: {res.status_code} {res.text[:200]}")
+        logger.info(f"Job finished: {event.job_id}")
 
 
-def _bulk_index(index_name, rows):
-    """
-    Bulk API 일괄 색인
-
-    index_name : ES 인덱스명
-    rows       : [ { doc_id, lang, url, title, content, published_at, collected_at }, ... ]
-    """
-    if not rows:
-        print(f"[ES] '{index_name}' 색인할 신규 데이터 없음")
-        return
-
-    lines = []
-    for row in rows:
-        doc_id = row.get("doc_id") or str(uuid.uuid4())
-        lines.append({"index": {"_index": index_name, "_id": doc_id}})
-        lines.append({
-            "doc_id"      : doc_id,
-            "lang"        : row.get("lang",         ""),
-            "url"         : row.get("url",          ""),
-            "title"       : row.get("title",        ""),
-            "content"     : row.get("content",      ""),
-            "published_at": row.get("published_at", ""),
-            "collected_at": row.get("collected_at", ""),
-        })
-
-    ndjson = "\n".join(json.dumps(line, ensure_ascii=False) for line in lines) + "\n"
-    res    = requests.post(
-        f"{ES_HOST}/_bulk",
-        data    = ndjson.encode("utf-8"),
-        headers = {"Content-Type": "application/x-ndjson"},
-    )
-
-    if res.status_code == 200:
-        items    = res.json().get("items", [])
-        ok_cnt   = sum(1 for i in items if i.get("index", {}).get("result") in ("created", "updated"))
-        fail_cnt = len(items) - ok_cnt
-        print(f"[ES] '{index_name}' 색인 완료: 성공 {ok_cnt}건 / 실패 {fail_cnt}건")
-    else:
-        print(f"[ES] Bulk 실패: {res.status_code} {res.text[:300]}")
+scheduler.add_listener(
+    listener,
+    EVENT_JOB_EXECUTED | EVENT_JOB_ERROR
+)
 
 
-# ================================================================
-# 한국어 뉴스 수집 잡
-# ================================================================
-def run_ko_crawl(label):
-    now   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    start = time.time()
-    # 수정 제안
-    line = '=' * 55
-    print(f"\n{line}\n[KO 스케줄] {label} 수집 시작 ({now})\n{line}")
-
-    rows     = collectKoNews.runStandaloneKo()
-    seen     = set()
-    new_rows = []
-    for row in (rows or []):
-        url = row.get("url", "")
-        if url and url not in seen:
-            seen.add(url)
-            new_rows.append(row)
-
-    print(f"[KO] 신규: {len(new_rows)}건")
-
-    _ensure_index(KO_INDEX, use_nori=True)
-    _bulk_index(KO_INDEX, new_rows)
-
-    print(f"[KO 스케줄] {label} 종료 (소요: {time.time()-start:.1f}초)\n")
+def shutdown_handler(signum, frame):
+    logger.info("Scheduler shutting down...")
+    scheduler.shutdown()
+    sys.exit(0)
 
 
-# ================================================================
-# 영문 뉴스 수집 잡
-# ================================================================
-def run_en_crawl(label):
-    now   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    start = time.time()
-    # 수정 제안
-    line = '=' * 55
-    print(f"\n{line}\n[KO 스케줄] {label} 수집 시작 ({now})\n{line}")
-
-    rows     = collectEnNews.runCollector()
-    seen     = set()
-    new_rows = []
-    for row in (rows or []):
-        url = row.get("url", "")
-        if url and url not in seen:
-            seen.add(url)
-            new_rows.append(row)
-
-    print(f"[EN] 신규: {len(new_rows)}건")
-
-    _ensure_index(EN_INDEX, use_nori=False)
-    _bulk_index(EN_INDEX, new_rows)
-
-    print(f"[EN 스케줄] {label} 종료 (소요: {time.time()-start:.1f}초)\n")
-
-
-# ================================================================
-# 경제지표 수집 잡
-# ================================================================
-def run_economic_crawl():
-    now   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    start = time.time()
-    # 수정 제안
-    line = '=' * 55
-    print(f"\n{line}\n[KO 스케줄] 수집 시작 ({now})\n{line}")
-
-    runEconomicCrawl()
-
-    print(f"[ECO 스케줄] 종료 (소요: {time.time()-start:.1f}초)\n")
-
-
-# ================================================================
-# 스케줄 등록 및 실행
-# ================================================================
-def main():
-    print("=" * 55)
-    print("  통합 크롤링 스케줄러 시작")
-    print("=" * 55)
-
-    for run_time, label in KO_SCHEDULES:
-        schedule.every().day.at(run_time).do(run_ko_crawl, label=label)
-        print(f"  [KO]  {run_time} - {label}")
-
-    for run_time, label in EN_SCHEDULES:
-        schedule.every().day.at(run_time).do(run_en_crawl, label=label)
-        print(f"  [EN]  {run_time} - {label}")
-
-    schedule.every().day.at(ECONOMIC_SCHEDULE).do(run_economic_crawl)
-    print(f"  [ECO] {ECONOMIC_SCHEDULE} - 경제지표 일일 수집")
-
-    print("\n[스케줄러] 대기 중... (종료: Ctrl+C)\n")
-
-    while True:
-        schedule.run_pending()
-        time.sleep(30)
+signal.signal(signal.SIGINT, shutdown_handler)
+signal.signal(signal.SIGTERM, shutdown_handler)
 
 
 if __name__ == "__main__":
-    main()
+    add_jobs()
+
+    logger.info("Financial Pulse Scheduler Started")
+    scheduler.start()

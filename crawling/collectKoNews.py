@@ -11,7 +11,7 @@ from selenium.webdriver.common.by import By
 from dateutil import parser
 
 # 유틸리티 로직 임포트
-from utils.crawlerUtils import generate_hash_id, managed_driver
+from utils.crawlerUtils import generateHashId, managedDriver
 from utils.cleaningUtils import KoNewsCleaner
 
 # [설정]
@@ -33,7 +33,7 @@ counter_lock = threading.Lock()
 # process_batch_ko 함수 내 적재 로직 수정
 def process_batch_ko(targets, thread_id, total_target_count, es, batch_collected_at):
     global total_processed_count
-    with managed_driver() as driver:
+    with managedDriver() as driver:
         for item in targets:
             try:
                 # 1. 발행일 검증
@@ -51,7 +51,7 @@ def process_batch_ko(targets, thread_id, total_target_count, es, batch_collected
                 # 2. URL 및 타이틀 정규화
                 pure_url = item['url'].split('?')[0].split('#')[0].strip()
                 pure_title = item['title'].strip()
-                doc_id = generate_hash_id(pure_url, pure_title)
+                doc_id = generateHashId(pure_url, pure_title)
 
                 if es.exists(index=INDEX_NAME, id=doc_id):
                     continue
@@ -75,7 +75,7 @@ def process_batch_ko(targets, thread_id, total_target_count, es, batch_collected
                         break
 
                 cleaned_content = KoNewsCleaner.clean(content)
-                if not cleaned_content or not KoNewsCleaner.is_valid(cleaned_content, pure_title):
+                if not cleaned_content or not KoNewsCleaner.isValid(cleaned_content, pure_title):
                     continue
 
                 # 4. 데이터 적재 (매핑에 정의된 7개 필드만 정확히 포함)

@@ -19,7 +19,7 @@ CHROME_SERVICE = Service(ChromeDriverManager().install())
 _active_drivers = []
 
 
-def _cleanup_all_drivers():
+def cleanupAllDrivers():
     if not _active_drivers:
         return
 
@@ -34,10 +34,10 @@ def _cleanup_all_drivers():
 
 
 # 파이썬 프로세스 종료 시 자동 실행 등록 (비정상 종료 대비)
-atexit.register(_cleanup_all_drivers)
+atexit.register(cleanupAllDrivers)
 
 
-def get_driver(timeout=10):
+def getDriver(timeout=10):
     """드라이버 생성 및 추적 리스트 등록"""
     options = ChromiumOptions()
     options.page_load_strategy = 'eager'
@@ -70,12 +70,12 @@ def get_driver(timeout=10):
 
 
 @contextmanager
-def managed_driver():
+def managedDriver():
     """
     with문(Context Manager)을 위한 래퍼 함수.
     정상 종료 및 예외 발생 시 자동으로 quit() 호출 보장.
     """
-    driver = get_driver()
+    driver = getDriver()
     try:
         yield driver
     finally:
@@ -87,12 +87,12 @@ def managed_driver():
             pass
 
 
-def extract_content_with_js(driver, title=""):
+def extractContentWithJs(driver, title=""):
     """
     본문 영역 우선 탐색 + JS 범용 추출 로직
     """
     # [1단계] 제목 기반 사전 필터링
-    if not NewsCleaner.is_valid("", title):
+    if not NewsCleaner.isValid("", title):
         return ""
 
     try:
@@ -150,13 +150,13 @@ def extract_content_with_js(driver, title=""):
     cleaned_content = NewsCleaner.clean(raw_content)
 
     # [4단계] 최종 품질 검수 (본문 미달 시 실패 처리)
-    if not NewsCleaner.is_valid(cleaned_content, title):
+    if not NewsCleaner.isValid(cleaned_content, title):
         return ""
 
     return cleaned_content
 
 
-def generate_hash_id(url, title):
+def generateHashId(url, title):
     """중복 방지용 고유 ID 생성"""
     clean_url = url.split('?')[0].split('#')[0].strip()
     raw_str = f"{clean_url}{title.strip()}"
