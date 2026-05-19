@@ -872,26 +872,46 @@ function drawNetworkFromApi(cid, netWrapId, networkData) {
       const isActive = holding ? activeIds.has(nd.id) : true;
       const isHeld   = (holding === nd);
       if (isHeld) { ctx.beginPath(); ctx.arc(nd.x, nd.y, nd.r + 6, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,181,173,0.2)'; ctx.fill(); }
-      const rank = nd.rank || 4;
-      let hash = 0;
-      for (let i = 0; i < nd.id.length; i++) {
-        hash = ((hash << 5) - hash) + nd.id.charCodeAt(i);
-        hash |= 0;
+      // ========== 색상 결정 (rank 1~5: 빨강→초록 그라데이션, 나머지 단색) ==========
+      const rank = nd.rank;
+      let fillColor, textColor;
+
+      const rankColors = {
+        1: { bg: '#FF0000', text: '#FFFFFF' },   // 빨강
+        2: { bg: '#CC9900', text: '#FFFFFF' },   // 진한노랑
+        3: { bg: '#0000FF', text: '#FFFFFF' },   // 블루
+        4: { bg: '#006400', text: '#FFFFFF' },   // 딥그린
+        // 5: { bg: '#FF00FF', text: '#FFFFFF' }    // 마젠타 (글자 흰색)
+      };
+
+      if (rank !== undefined && rank >= 1 && rank <= 4) {        
+        const color = rankColors[rank];
+        fillColor = color.bg;
+        textColor = color.text;
+      } else {
+        // 연관 키워드 (rank 없음 또는 6 이상): 연한 회색 배경 + 진한 글씨
+        fillColor = '#CCFFCC';       // 매우 연한 회색
+        textColor = '#1E293B';       // 짙은 회색 (가독성 좋음)
       }
-      const hue = Math.abs(hash % 360);
-      
-      const lght = 55 + (Math.min(rank, 7) - 1) * 2.5;
-      let mc = isActive ? `hsl(${hue},100%,${lght}%)` : '#dddddd';
-      let lc = isActive ? `hsl(${hue},100%,${lght + 15}%)` : '#eeeeee';
-      let dc = isActive ? `hsl(${hue},100%,${lght - 15}%)` : '#bbbbbb';
-      const grad = ctx.createRadialGradient(nd.x - nd.r * 0.3, nd.y - nd.r * 0.3, nd.r * 0.2, nd.x, nd.y, nd.r);
-      grad.addColorStop(0, lc); grad.addColorStop(1, dc);ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(nd.x, nd.y, nd.r, 0, Math.PI * 2); ctx.fillStyle = grad; ctx.fill();
+
+      // (선택) active 상태일 때 시각적 강조를 원하면 아래처럼 테두리 추가 가능
+      // if (isActive) ctx.shadowBlur = 8;
+      ctx.fillStyle = fillColor;
+      ctx.beginPath();
+      ctx.arc(nd.x, nd.y, nd.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // (선택) 테두리 추가 – 연관 키워드 경계를 살짝 표현
+      if (rank === undefined || rank > 5) {
+        ctx.strokeStyle = '#CBD5E1';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
       if (isHeld) { ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 2.5; ctx.stroke(); }
       ctx.beginPath(); ctx.arc(nd.x - nd.r * 0.35, nd.y - nd.r * 0.35, nd.r * 0.2, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill();
       ctx.shadowBlur = 1.2; ctx.shadowColor = 'rgba(0,0,0,0.2)';
-      ctx.fillStyle = '#0D1F3C'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = textColor; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       let size = 10; ctx.font = `700 ${size}px "Noto Sans KR",sans-serif`;
       while (ctx.measureText(nd.id).width > nd.r * 1.6 && size > 8) { size -= 0.5; ctx.font = `700 ${size}px "Noto Sans KR",sans-serif`; }
       ctx.fillText(nd.id, nd.x, nd.y); ctx.shadowBlur = 0;
