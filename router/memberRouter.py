@@ -39,19 +39,19 @@ def logIn(req: LoginRequest, request: Request, response: Response):
     from encryption.encBase import ADMIN_EMAIL
     from service.adminSvc import adminLogin
 
-    if req.email == ADMIN_EMAIL:
-        # 관리자 이메일이면 adminSvc로 위임
-        result = adminLogin(email=req.email, password=req.password)
-
-        # 세션 쿠키 저장 - X 예정
-        response.set_cookie(
-            key="admin_session",
-            value=result["token"],
-            httponly=True,
-            samesite="lax",
-            max_age=60 * 60 * 8
-        )
-        return ok("관리자 로그인 성공", {"role": "admin", "email": result["email"]})
+    # if req.email == ADMIN_EMAIL:
+    #     # 관리자 이메일이면 adminSvc로 위임
+    #     result = adminLogin(email=req.email, password=req.password)
+    #
+    #     # 세션 쿠키 저장 - X 예정
+    #     response.set_cookie(
+    #         key="admin_session",
+    #         value=result["token"],
+    #         httponly=True,
+    #         samesite="lax",
+    #         max_age=60 * 60 * 8
+    #     )
+    #     return ok("관리자 로그인 성공", {"role": "admin", "email": result["email"]})
 
     conn = getConn()
     try:
