@@ -41,7 +41,6 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 import os
-from dotenv import load_dotenv
 from router.dashboardRouter import router as dashboardRouter
 from router.keywordRouter import router as keywordRouter
 from router.spikeRouter import router as spikeRouter
@@ -54,9 +53,37 @@ from router.correctionRouter import router as correctionRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-load_dotenv()
+from contextlib import asynccontextmanager
+from crawling.crawlSchedular import scheduler, add_jobs
+from dataStorage.elasticSearch.esIndex import createAllIndices
+from dataStorage.mariaDb.db import createTables
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ================================================================
+    # 서버 시작 시 실행
+    # ================================================================
+    print("[STARTUP] 인덱스 확인 중...")
+    createAllIndices()
+    createTables()
+
+    # 스케줄러 시작
+    # test_mode=False → 정기 스케줄만 등록
+    # test_mode=True  → 즉시 테스트 실행
+    add_jobs(test_mode=False)
+    scheduler.start()
+    print("[STARTUP] 스케줄러 시작 완료")
+
+    yield  # 서버 실행 중
+
+    # ================================================================
+    # 서버 종료 시 실행
+    # ================================================================
+    scheduler.shutdown()
+    print("[SHUTDOWN] 스케줄러 종료 완료")
 
 app = FastAPI()
+app.mount("/", StaticFiles(directory="view"), name="static")
 
 # ── HTML 라우트 (마운트보다 먼저 등록) ──
 @app.get("/")
@@ -116,4 +143,3 @@ app.include_router(crawlRouter)
 app.include_router(esRouter)
 app.include_router(correctionRouter)
 
-app.mount("/", StaticFiles(directory="view"), name="static")

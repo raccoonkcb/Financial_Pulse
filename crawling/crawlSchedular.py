@@ -20,7 +20,7 @@ from functools import wraps
 from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta
 
-from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
 from collectKoNews import run_standalone_ko
@@ -58,19 +58,19 @@ def guarded(lock, job_name):
         @wraps(func)
         def wrapper():
             if lock.locked():
-                logger.warning(f"{job_name} already running. skipped.")
+                logger.warning(f"{job_name} already running. skipped.", extra={"action":"guarded"})
                 return
 
             with lock:
                 start = time.time()
-                logger.info(f"{job_name} started")
+                logger.info(f"{job_name} started", extra={"action":"guarded"})
 
                 try:
                     func()
                     elapsed = time.time() - start
-                    logger.info(f"{job_name} completed ({elapsed:.1f}s)")
+                    logger.info(f"{job_name} completed ({elapsed:.1f}s)", extra={"action":"guarded"})
                 except Exception as e:
-                    logger.exception(f"{job_name} failed: {e}")
+                    logger.exception(f"{job_name} failed: {e}", extra={"action":"guarded"})
 
         return wrapper
     return decorator
@@ -97,7 +97,7 @@ def run_eco():
 # =========================
 # Scheduler
 # =========================
-scheduler = BlockingScheduler(
+scheduler = BackgroundScheduler(
     timezone=ZoneInfo("Asia/Seoul")
 )
 
@@ -129,15 +129,15 @@ def add_jobs(test_mode=False):
         now = datetime.now(ZoneInfo("Asia/Seoul"))
         scheduler.add_job(run_eco, trigger='date', run_date=now + timedelta(seconds=3), id='test_eco')
         scheduler.add_job(run_ko, trigger='date', run_date=now + timedelta(minutes=10), id='test_ko')
-        scheduler.add_job(run_en, trigger='date', run_date=now + timedelta(minutes=30), id='test_en')
+        scheduler.add_job(run_en, trigger='date', run_date=now + timedelta(minutes=40), id='test_en')
 
 
 
 def listener(event):
     if event.exception:
-        logger.error(f"Job crashed: {event.job_id}")
+        logger.error(f"Job crashed: {event.job_id}", extra={"action":"listener"})
     else:
-        logger.info(f"Job finished: {event.job_id}")
+        logger.info(f"Job finished: {event.job_id}", extra={"action":"listener"})
 
 
 scheduler.add_listener(

@@ -13,6 +13,9 @@ from dateutil import parser
 # 유틸리티 로직 임포트
 from utils.crawlerUtils import generateHashId, managedDriver
 from utils.cleaningUtils import KoNewsCleaner
+from logs.logger import getLogger
+
+logger = getLogger("crawl")
 
 # [설정]
 ES_URL = 'http://100.88.143.23:9200'
@@ -208,4 +211,4 @@ def run_standalone_ko(start_date=None, end_date=None):
 
 
 if __name__ == "__main__":
-    run_standalone_ko()
+    run_standalone_ko("2026-05-11", "2026-05-18")

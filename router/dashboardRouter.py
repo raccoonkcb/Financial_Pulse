@@ -385,7 +385,7 @@ def getDashboard(lang: str = "ko"):
 
         if not doc_ids_today:
             logger.warning("오늘 기사 없음 — 빈 데이터 반환", extra={
-                "action": "doc_ids_empty",
+                "action": "getDashboard",
                 "index" : news_index,
                 "date"  : today,
             })
