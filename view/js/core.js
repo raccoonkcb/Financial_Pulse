@@ -47,7 +47,7 @@ async function checkSession(adminOnly) {
     location.replace('login.html');
     return null;
   }
-  if (adminOnly && session.email !== 'admin@financepulse.com') {
+  if (adminOnly && session.role !== 'admin') {
     location.replace('login.html');
     return null;
   }
@@ -86,7 +86,7 @@ function renderSidebar(activeId) {
     const s = JSON.parse(localStorage.getItem('fp_session') || sessionStorage.getItem('fp_session') || 'null');
     email = s ? s.email : '';
   }
-  
+
   // proto_v13 스타일의 사이드바 반환
   return `
     <aside class="sidebar">
@@ -344,6 +344,9 @@ async function openAnalysisOverlay(kw) {
           <div class="ao-cmp-legend">
             <span class="ao-leg"><span class="ao-leg-dot" style="background:#2ECC71;"></span>긍정 비율</span>
             <span class="ao-leg"><span class="ao-leg-dot" style="background:#E74C3C;"></span>부정 비율</span>
+          </div>
+          <div style="font-size:11px;color:var(--sub);margin-top:6px;">
+            * 검색어가 포함된 기사들의 섹터별 긍/부정 비율
           </div>
         </div>
       </div>
