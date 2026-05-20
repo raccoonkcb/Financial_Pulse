@@ -229,7 +229,7 @@ function renderSectorStackFromApi(cid, sectorTendency) {
     <div class="stack-item">
       <div class="stack-label">
         <span>${s.name}</span>
-        <span style="font-size:11px;color:var(--sub);">긍정 ${Math.round(s.pos)}% · 부정 ${Math.round(s.neg)}%</span>
+        <span style="font-size:11px;color:var(--sub);">긍정 ${s.pos.toFixed(1)}% · 부정 ${s.neg.toFixed(1)}%</span>
       </div>
       <div class="stack-bar-bg">
         <div class="stack-pos" style="width:${s.pos}%;"></div>

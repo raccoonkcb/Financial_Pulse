@@ -134,10 +134,10 @@ function toSectorStats(sectorChanges) {
   return (sectorChanges || []).map(function(s) {
     return {
       name     : s.sector,
-      usual    : Math.round(s.week_avg ? s.week_avg.pos   : 0),
-      today    : Math.round(s.today    ? s.today.pos      : 0),
+      usual    : parseFloat((+(s.week_avg && s.week_avg.pos != null ? s.week_avg.pos : 0)).toFixed(1)),
+      today    : parseFloat((+(s.today && s.today.pos != null ? s.today.pos : 0)).toFixed(1)),
       total    : s.today    ? s.today.total               : 0,
-      weekTotal: s.week_avg ? Math.round(s.week_avg.total): 0,
+      weekTotal: s.week_avg ? parseFloat(s.week_avg.total.toFixed(1)) : 0,
     };
   });
 }
@@ -167,8 +167,8 @@ function toOverallScore(overall) {
   if (!overall) return { score: '0.0', pos: 0, neg: 0 };
   return {
     score: overall.pos.toFixed(1),
-    pos  : Math.round(overall.pos),
-    neg  : Math.round(overall.neg),
+    pos  : parseFloat(overall.pos.toFixed(1)),
+    neg  : parseFloat(overall.neg.toFixed(1)),
   };
 }
 
@@ -184,9 +184,9 @@ function toKwCloud(sectorChanges) {
     return {
       name : s.sector,
       icon : iconMap[s.sector] || 'fas fa-tag',
-      pos  : Math.round(s.today ? s.today.pos : 0),
-      neg  : Math.round(s.today ? s.today.neg : 0),
-      neu  : Math.round(s.today ? s.today.neu : 0),
+      pos  : parseFloat((+(s.today && s.today.pos != null ? s.today.pos : 0)).toFixed(1)),
+      neg  : parseFloat((+(s.today && s.today.neg != null ? s.today.neg : 0)).toFixed(1)),
+      neu  : parseFloat((+(s.today && s.today.neu != null ? s.today.neu : 0)).toFixed(1)),
       score: s.today ? s.today.pos.toFixed(1) : '0.0',
     };
   });

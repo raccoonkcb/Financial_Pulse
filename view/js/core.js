@@ -305,7 +305,6 @@ async function openAnalysisOverlay(kw) {
     // ★ dominant 계산
     const sentiments = [
       { label: '긍정', value: pos, color: '#2ECC71' },
-      { label: '중립', value: neu, color: '#8E9CC5' },
       { label: '부정', value: neg, color: '#E74C3C' }
     ];
     const dominant = sentiments.reduce((max, s) => s.value > max.value ? s : max, sentiments[0]);
@@ -327,7 +326,6 @@ async function openAnalysisOverlay(kw) {
             </div>
             <div class="ao-legend">
               <span class="ao-leg"><span class="ao-leg-dot" style="background:#2ECC71;"></span>긍정 ${pos}%</span>
-              <span class="ao-leg"><span class="ao-leg-dot" style="background:#8E9CC5;"></span>중립 ${neu}%</span>
               <span class="ao-leg"><span class="ao-leg-dot" style="background:#E74C3C;"></span>부정 ${neg}%</span>
             </div>
           </div>
