@@ -258,6 +258,24 @@
         flex: auto;
       }
     }
+    /* 비밀번호 토글 아이콘 */
+    .pw-toggle {
+        position: absolute;
+        right: 12px;
+        top: 38px;
+        cursor: pointer;
+        color: var(--sub);
+        font-size: 16px;
+        z-index: 2;
+        transition: 0.2s;
+    }
+    .pw-toggle:hover {
+        color: var(--teal);
+    }
+    /* 입력 필드 감싸는 relative 컨테이너 */
+    .mfg {
+        position: relative;
+    }
   </style>
 </head>
 <body>
@@ -378,11 +396,13 @@
     <div class="mfg">
       <label>비밀번호</label>
       <input type="password" id="signupPw" placeholder="영문/숫자/특수문자 8자 이상"/>
+      <i class="fas fa-eye-slash pw-toggle" id="togglePw"></i>
       <span class="pw-hint">영문/숫자/특수문자 8자 이상</span>
     </div>
     <div class="mfg">
       <label>비밀번호 확인</label>
       <input type="password" id="signupPwC" placeholder="다시 입력"/>
+      <i class="fas fa-eye-slash pw-toggle" id="togglePwC"></i>
       <div class="pw-match-msg" id="pwMatchMsg"></div>
     </div>
     <div class="mfg">
@@ -416,6 +436,19 @@
 <script src="js/core.js"></script>
 <script src="js/api.js"></script> 
 <script>
+
+let emailVerified = false;   // 중복 확인 완료 여부 (true/false)
+
+// 비밀번호 강도 검증 함수
+function isPasswordStrong(pw) {
+    // 영문, 숫자, 특수문자 각 1종류 이상 & 전체 길이 8자 이상
+    const strongRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
+    return strongRegex.test(pw);
+}
+
+function isValidPhone(phone) {
+    return /^\d{11}$/.test(phone);   // 숫자 11자리만 허용
+}
 
 function showPreview(imgSrc) {
     const preview = document.getElementById('previewImage');
@@ -571,56 +604,74 @@ function mAlert(alertId,msgId,msg,type){
   el.className='ma show '+(type==='ok'?'ok':'err');
   el.children[0].className='fas fa-'+(type==='ok'?'circle-check':'circle-exclamation');
   if(ms)ms.innerText=msg;
-  setTimeout(function(){el.className='ma';},3500);
+  // setTimeout(function(){el.className='ma';},10000);
 }
 function open(id){document.getElementById(id).classList.add('show');}
 function close(id){document.getElementById(id).classList.remove('show');}
 
 // 회원가입 버튼 활성화 (dupMsg 위치 변경됐지만 id로 찾기 때문에 정상 동작)
 function updateSignupButtonState() {
-  const email = document.getElementById('signupEmail').value.trim();
-  const pw = document.getElementById('signupPw').value;
-  const pwC = document.getElementById('signupPwC').value;
-  const name = document.getElementById('signupName').value.trim();
-  const phone = document.getElementById('signupPhone').value.trim();
-  const dupMsg = document.getElementById('dupMsg');
-  const isEmailOk = dupMsg && dupMsg.classList.contains('ok') && dupMsg.innerText.includes('사용 가능');
-
-  let isPwMatch = false;
-  const pwMatchMsg = document.getElementById('pwMatchMsg');
-  if(pw || pwC) {
-    if(pw === pwC && pw.length >= 6) {
-      isPwMatch = true;
-      if(pwMatchMsg) {
-        pwMatchMsg.className = 'pw-match-msg ok';
-        pwMatchMsg.innerText = '✓ 비밀번호가 일치합니다.';
-      }
+    const email = document.getElementById('signupEmail').value.trim();
+    const pw = document.getElementById('signupPw').value;
+    const pwC = document.getElementById('signupPwC').value;
+    const name = document.getElementById('signupName').value.trim();
+    const phone = document.getElementById('signupPhone').value.trim();
+    
+    // 1. 모든 필드가 비어있지 않은지 확인 (단순 값 존재 여부)
+    const isAllFieldsFilled = email !== '' && pw !== '' && pwC !== '' && name !== '' && phone !== '';
+    
+    // 2. 이메일 중복 확인 완료 여부
+    const isEmailVerifiedOk = emailVerified;
+    
+    // 3. 버튼 활성화 조건: 중복 확인 완료 + 모든 필드에 값이 있음
+    const canSignup = isEmailVerifiedOk && isAllFieldsFilled;
+    
+    // 4. 비밀번호 확인 메시지는 실시간으로 표시하되 버튼 활성화에는 영향 없음
+    const pwMatchMsg = document.getElementById('pwMatchMsg');
+    const isPwStrong = isPasswordStrong(pw);
+    const isPwMatch = (pw === pwC) && (pw !== '');
+    
+    if(pw || pwC) {
+        if(isPwStrong && isPwMatch) {
+            pwMatchMsg.className = 'pw-match-msg ok';
+            pwMatchMsg.innerText = '✓ 비밀번호가 일치하고 안전합니다.';
+        } else if(pw !== pwC) {
+            pwMatchMsg.className = 'pw-match-msg ng';
+            pwMatchMsg.innerText = '✗ 비밀번호가 일치하지 않습니다.';
+        } else if(!isPwStrong && pw.length > 0) {
+            pwMatchMsg.className = 'pw-match-msg ng';
+            pwMatchMsg.innerText = '✗ 영문/숫자/특수문자 포함 8자 이상이어야 합니다.';
+        } else {
+            pwMatchMsg.className = 'pw-match-msg ng';
+            pwMatchMsg.innerText = '✗ 비밀번호를 확인해주세요.';
+        }
     } else {
-      isPwMatch = false;
-      if(pwMatchMsg) {
-        pwMatchMsg.className = 'pw-match-msg ng';
-        if(pw !== pwC) pwMatchMsg.innerText = '✗ 비밀번호가 일치하지 않습니다.';
-        else if(pw.length < 6) pwMatchMsg.innerText = '✗ 비밀번호는 6자 이상이어야 합니다.';
-        else pwMatchMsg.innerText = '✗ 비밀번호를 확인해주세요.';
-      }
+        pwMatchMsg.className = 'pw-match-msg';
+        pwMatchMsg.innerText = '';
     }
-  } else {
-    if(pwMatchMsg) {
-      pwMatchMsg.className = 'pw-match-msg';
-      pwMatchMsg.innerText = '';
-    }
-  }
-  
-  const allFieldsFilled = email && pw && pwC && name && phone && pw.length >= 6 && isPwMatch;
-  const canSignup = allFieldsFilled && isEmailOk;
-  
-  const signupBtn = document.getElementById('doSignup');
-  if(signupBtn) signupBtn.disabled = !canSignup;
+    
+    // 5. 버튼 활성화/비활성화 적용
+    const signupBtn = document.getElementById('doSignup');
+    if(signupBtn) signupBtn.disabled = !canSignup;
 }
 
 window.addEventListener('load', () => {
     updateTodayKeywords(DOM_KW);
 });
+
+function togglePasswordVisibility(inputId, toggleIcon) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(toggleIcon);
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    }
+}
 
 function initSignupValidation() {
   const emailInput = document.getElementById('signupEmail');
@@ -628,7 +679,7 @@ function initSignupValidation() {
   const pwCInput = document.getElementById('signupPwC');
   const nameInput = document.getElementById('signupName');
   const phoneInput = document.getElementById('signupPhone');
-  const dupCheckBtn = document.getElementById('dupCheck');
+  // const dupCheckBtn = document.getElementById('dupCheck');
   const dupMsgDiv = document.getElementById('dupMsg');
   
   const inputs = [emailInput, pwInput, pwCInput, nameInput, phoneInput];
@@ -638,39 +689,15 @@ function initSignupValidation() {
   
   if(emailInput) {
     emailInput.addEventListener('input', function() {
+      emailVerified = false;
       if(dupMsgDiv) {
         dupMsgDiv.className = 'dup-msg';
         dupMsgDiv.innerText = '';
       }
       updateSignupButtonState();
     });
-  }
-  
-  if(dupCheckBtn) {
-    dupCheckBtn.onclick = function() {
-      const email = emailInput.value.trim();
-      if(!email) {
-        if(dupMsgDiv) {
-          dupMsgDiv.className = 'dup-msg ng';
-          dupMsgDiv.innerText = '이메일을 입력하세요.';
-        }
-        updateSignupButtonState();
-        return;
-      }
-      if(window.findByEmail && findByEmail(email)) {
-        if(dupMsgDiv) {
-          dupMsgDiv.className = 'dup-msg ng';
-          dupMsgDiv.innerText = '이미 사용 중인 이메일입니다.';
-        }
-      } else {
-        if(dupMsgDiv) {
-          dupMsgDiv.className = 'dup-msg ok';
-          dupMsgDiv.innerText = '사용 가능한 이메일입니다.';
-        }
-      }
-      updateSignupButtonState();
-    };
-  }
+  } 
+
 }
 
 window.onload = function () {
@@ -685,6 +712,13 @@ window.onload = function () {
   document.getElementById('goLogin').onclick     = () => close('signupModal');
   ['findIdModal','findPwModal','signupModal','doneModal'].forEach(id => {
 
+  });
+  // 비밀번호 표시 토글
+  document.getElementById('togglePw').addEventListener('click', function() {
+      togglePasswordVisibility('signupPw', 'togglePw');
+  });
+  document.getElementById('togglePwC').addEventListener('click', function() {
+      togglePasswordVisibility('signupPwC', 'togglePwC');
   });
 
 
@@ -705,15 +739,21 @@ window.onload = function () {
       return;
     }
 
+    // 2️⃣ 이메일 형식 검사 (회원가입 때와 동일한 정규식)
+    const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailPattern.test(email)) {
+        al.className = 'l-alert show err';
+        ms.innerText = '올바른 이메일 형식이 아닙니다.';
+        return;
+    }
+
     setBtnLoading(btn, true);
     try {
-      let data= await apiLogin(email, pw);
-      console.log(data);
-      // 로그인 성공 → 대시보드로 이동
-      if (email === 'dino@financial.pulse') {
-        location.href = 'admin.html';
+      const data = await apiLogin(email, pw);
+      if (data.role === 'admin') {
+        location.replace('admin.html');
       } else {
-        location.href = 'dashboard.html';
+        location.replace('dashboard.html');
       }
     } catch (e) {
       al.className = 'l-alert show err';
@@ -732,6 +772,85 @@ window.onload = function () {
 
   document.getElementById('loginBtn').onclick                    = doLogin;
   document.getElementById('loginPassword').onkeydown = e => { if (e.key === 'Enter') doLogin(); };
+
+    // 로그인 실패 카운터 (이메일 기준)
+  function getFailCount(email) {
+      const key = `login_fail_${email}`;
+      const count = localStorage.getItem(key);
+      return count ? parseInt(count) : 0;
+  }
+  function setFailCount(email, count) {
+      const key = `login_fail_${email}`;
+      if (count >= 5) {
+          localStorage.setItem(key, 5);
+      } else if (count <= 0) {
+          localStorage.removeItem(key);
+      } else {
+          localStorage.setItem(key, count);
+      }
+  }
+  function resetFailCount(email) {
+      localStorage.removeItem(`login_fail_${email}`);
+  }
+
+  async function doLogin() {
+      const email = document.getElementById('loginEmail').value.trim();
+      const pw = document.getElementById('loginPassword').value;
+      const al = document.getElementById('lAlert');
+      const ms = document.getElementById('lMsg');
+      const btn = document.getElementById('loginBtn');
+      al.className = 'l-alert';
+
+      if (!email || !pw) {
+          al.className = 'l-alert show err';
+          ms.innerText = '이메일과 비밀번호를 입력하세요.';
+          return;
+      }
+
+      // 이메일 형식 검사
+      const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailPattern.test(email)) {
+          al.className = 'l-alert show err';
+          ms.innerText = '올바른 이메일 형식이 아닙니다.';
+          return;
+      }
+
+      // 현재 실패 횟수 확인
+      let failCount = getFailCount(email);
+      if (failCount >= 5) {
+          al.className = 'l-alert show err';
+          ms.innerText = '로그인이 5회 실패하여 잠겼습니다. 비밀번호 찾기를 이용하세요.';
+          return;
+      }
+
+      setBtnLoading(btn, true);
+      try {
+          const data = await apiLogin(email, pw);
+          // 로그인 성공 → 실패 카운터 초기화
+          resetFailCount(email);
+          if (email === 'dino@financial.pulse') {
+              location.href = 'admin.html';
+          } else {
+              location.href = 'dashboard.html';
+          }
+      } catch (e) {
+          // 실패 횟수 증가
+          failCount++;
+          setFailCount(email, failCount);
+          const remaining = 5 - failCount;
+
+          // 통일된 오류 메시지
+          al.className = 'l-alert show err';
+          ms.innerText = `이메일 또는 비밀번호가 일치하지 않습니다. (남은 시도: ${remaining}회)`;
+
+          // 남은 시도 표시 (fail-cnt 영역)
+          const fc = document.getElementById('failCnt');
+          fc.className = 'fail-cnt show';
+          fc.innerText = `로그인 실패 (남은 시도: ${remaining}회)`;
+      } finally {
+          setBtnLoading(btn, false, '로그인');
+      }
+  }
 
 
   // ================================================================
@@ -782,20 +901,82 @@ window.onload = function () {
   // ================================================================
   let emailOk = false;
 
+  // document.getElementById('dupCheck').onclick = async () => {
+  //   const email = document.getElementById('signupEmail').value.trim();
+  //   const dm    = document.getElementById('dupMsg');
+  //   if (!email) {
+  //     dm.className = 'dup-msg ng';
+  //     dm.innerText = '이메일을 입력하세요.';
+  //     return;
+  //   }
+  //   const result = await apiCheckEmail(email);
+  //   emailOk        = result.available;
+  //   dm.className   = `dup-msg ${result.available ? 'ok' : 'ng'}`;
+  //   dm.innerText   = result.message;
+  //   updateSignupButtonState();
+  // };
+
+  // login.html 내 <script> 영역, 기존 dupCheck.onclick 을 아래로 교체
   document.getElementById('dupCheck').onclick = async () => {
-    const email = document.getElementById('signupEmail').value.trim();
-    const dm    = document.getElementById('dupMsg');
-    if (!email) {
-      dm.className = 'dup-msg ng';
-      dm.innerText = '이메일을 입력하세요.';
-      return;
-    }
-    const result = await apiCheckEmail(email);
-    emailOk        = result.available;
-    dm.className   = `dup-msg ${result.available ? 'ok' : 'ng'}`;
-    dm.innerText   = result.message;
-    updateSignupButtonState();
+      const email = document.getElementById('signupEmail').value.trim();
+      const dm = document.getElementById('dupMsg');
+      // 1️⃣ 이메일 형식 검사
+      const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailPattern.test(email)) {
+          dm.className = 'dup-msg ng';
+          dm.innerText = '올바른 이메일 형식이 아닙니다.';
+          emailVerified = false;
+          updateSignupButtonState();
+          return;
+      }
+      // 2️⃣ API 호출로 실제 중복 확인
+      try {
+          const result = await apiCheckEmail(email);
+          emailVerified = result.available;
+          dm.className = `dup-msg ${result.available ? 'ok' : 'ng'}`;
+          dm.innerText = result.message;
+      } catch (err) {
+          emailVerified = false;
+          dm.className = 'dup-msg ng';
+          dm.innerText = '중복 확인 중 오류가 발생했습니다.';
+      }
+      updateSignupButtonState();
   };
+
+  // document.getElementById('doSignup').onclick = async () => {
+  //   const email = document.getElementById('signupEmail').value.trim();
+  //   const pw    = document.getElementById('signupPw').value;
+  //   const pwc   = document.getElementById('signupPwC').value;
+  //   const name  = document.getElementById('signupName').value.trim();
+  //   const phone = document.getElementById('signupPhone').value.trim();
+  //   const btn   = document.getElementById('doSignup');
+
+  //   if (!email || !pw || !pwc || !name || !phone) {
+  //     mAlert('signupAlert', 'signupMsg', '모든 항목을 입력하세요.', 'err');
+  //     return;
+  //   }
+  //   var dupMsgDiv = document.getElementById('dupMsg');
+  //   var isEmailVerified = dupMsgDiv && dupMsgDiv.classList.contains('ok') && dupMsgDiv.innerText.includes('사용 가능');
+  //   if(!isEmailVerified) {
+  //       mAlert('signupAlert','signupMsg','이메일 중복 확인을 해주세요.','err');
+  //   return;
+  // }
+  //   if (pw !== pwc) {
+  //     mAlert('signupAlert', 'signupMsg', '비밀번호가 일치하지 않습니다.', 'err');
+  //     return;
+  //   }
+
+  //   setBtnLoading(btn, true);
+  //   try {
+  //     await apiSignup(email, pw, name, phone);
+  //     close('signupModal');
+  //     open('doneModal');
+  //   } catch (e) {
+  //     mAlert('signupAlert', 'signupMsg', e.message, 'err');
+  //   } finally {
+  //     setBtnLoading(btn, false, '가입하기');
+  //   }
+  // };
 
   document.getElementById('doSignup').onclick = async () => {
     const email = document.getElementById('signupEmail').value.trim();
@@ -803,32 +984,62 @@ window.onload = function () {
     const pwc   = document.getElementById('signupPwC').value;
     const name  = document.getElementById('signupName').value.trim();
     const phone = document.getElementById('signupPhone').value.trim();
-    const btn   = document.getElementById('doSignup');
+    const dupMsgDiv = document.getElementById('dupMsg');   // 오류 메시지 표시 위치
 
-    if (!email || !pw || !pwc || !name || !phone) {
-      mAlert('signupAlert', 'signupMsg', '모든 항목을 입력하세요.', 'err');
-      return;
+    // 1️⃣ 이메일 중복 확인 상태 검사
+    // if (!dupMsgDiv.classList.contains('ok') || !dupMsgDiv.innerText.includes('사용 가능')) {
+    //     dupMsgDiv.className = 'dup-msg ng';
+    //     dupMsgDiv.innerText = '이메일 중복 확인을 완료해 주세요.';
+    //     return;
+    // }
+
+    if (!emailVerified) {
+        dupMsgDiv.className = 'dup-msg ng';
+        dupMsgDiv.innerText = '이메일 중복 확인을 완료해 주세요.';
+        return;
     }
-    var dupMsgDiv = document.getElementById('dupMsg');
-    var isEmailVerified = dupMsgDiv && dupMsgDiv.classList.contains('ok') && dupMsgDiv.innerText.includes('사용 가능');
-    if(!isEmailVerified) {
-        mAlert('signupAlert','signupMsg','이메일 중복 확인을 해주세요.','err');
-    return;
-  }
+
+    // 2️⃣ 비밀번호 강도 검증
+    if (!isPasswordStrong(pw)) {
+        dupMsgDiv.className = 'dup-msg ng';
+        dupMsgDiv.innerText = '비밀번호 형식이 잘못되었습니다. (영문/숫자/특수문자 포함 8자 이상)';
+        return;
+    }
+
+    // 3️⃣ 비밀번호 확인 일치
     if (pw !== pwc) {
-      mAlert('signupAlert', 'signupMsg', '비밀번호가 일치하지 않습니다.', 'err');
-      return;
+        dupMsgDiv.className = 'dup-msg ng';
+        dupMsgDiv.innerText = '비밀번호가 일치하지 않습니다.';
+        return;
     }
 
+    // 4️⃣ 이름 비어 있음 검사
+    if (!name) {
+        dupMsgDiv.className = 'dup-msg ng';
+        dupMsgDiv.innerText = '이름을 입력해 주세요.';
+        return;
+    }
+
+    // 5️⃣ 휴대폰 번호 형식 검증
+    if (!isValidPhone(phone)) {
+        dupMsgDiv.className = 'dup-msg ng';
+        dupMsgDiv.innerText = '휴대폰번호 형식이 잘못되었습니다. (숫자 11자리만)';
+        return;
+    }
+
+    // 모든 검증 통과 → 서버 회원가입 API 호출
+    const btn = document.getElementById('doSignup');
     setBtnLoading(btn, true);
     try {
-      await apiSignup(email, pw, name, phone);
-      close('signupModal');
-      open('doneModal');
+        await apiSignup(email, pw, name, phone);
+        close('signupModal');
+        open('doneModal');
     } catch (e) {
-      mAlert('signupAlert', 'signupMsg', e.message, 'err');
+        // 서버에서 오류 메시지를 그대로 표시 (예: 이미 존재하는 이메일)
+        dupMsgDiv.className = 'dup-msg ng';
+        dupMsgDiv.innerText = e.message;
     } finally {
-      setBtnLoading(btn, false, '가입하기');
+        setBtnLoading(btn, false, '가입하기');
     }
   };
 
