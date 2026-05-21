@@ -349,44 +349,58 @@ class TextAnalyzer:
 
         return True
 
-    def run_analysis(self, target_langs=['ko', 'en']):
-        ko_vectorizer = CountVectorizer(tokenizer=self.kiwi_tokenizer, token_pattern=None)
-        en_vectorizer = CountVectorizer(tokenizer=self.en_tokenizer, token_pattern=None)
-        batch_size = 8
-
-        for lang in target_langs:
+    def run_analysis(self, lang: str=None,  start_date: str=None, end_date: str=None):
+        if lang == 'ko':
+            ko_vectorizer = CountVectorizer(tokenizer=self.kiwi_tokenizer, token_pattern=None)
             index_name = f"news_{lang}"
-            target_model = self.st_model_ko if lang == 'ko' else self.st_model_en
-            vectorizer = ko_vectorizer if lang == 'ko' else en_vectorizer
+            target_model = self.st_model_ko
+            vectorizer = ko_vectorizer
+            self.kw_model.model = SentenceTransformerBackend(target_model)
+        elif lang == 'en':
+            en_vectorizer = CountVectorizer(tokenizer=self.en_tokenizer, token_pattern=None)
+            index_name = f"news_{lang}"
+            target_model = self.st_model_en
+            vectorizer = en_vectorizer
             self.kw_model.model = SentenceTransformerBackend(target_model)
 
-            scan = helpers.scan(self.es, index=index_name, query={"query": {"match_all": {}}}, size=500,
-                                _source=["content", "title"])
+        batch_size = 8
+        if start_date and end_date:
+            es_query = {
+                "query": {
+                    "range": {
+                        "published_at": {"gte": start_date, "lte": end_date}
+                    }
+                }
+            }
+        else:
+            es_query = {"query": {"match_all": {}}}
+        scan = helpers.scan(self.es, index=index_name, query=es_query, size=500,
+                            _source=["content", "title"])
 
-            batch_docs = []
-            for doc in tqdm(scan, desc=f"Processing {lang.upper()}"):
-                content = doc['_source'].get('content', '')
-                title = doc['_source'].get('title', '')
-                if not content or len(content) < 10: continue
+        batch_docs = []
+        for doc in tqdm(scan, desc=f"Processing {lang.upper()}"):
+            content = doc['_source'].get('content', '')
+            title = doc['_source'].get('title', '')
+            if not content or len(content) < 10: continue
 
-                ner_results, candidate_results = self._extract_ner(content, lang)
+            ner_results, candidate_results = self._extract_ner(content, lang)
 
-                batch_docs.append({
-                    "id": doc['_id'],
-                    "content": f"{title}. {content}",
-                    "ner": ner_results,
-                    "candidates": candidate_results,
-                    "lang": lang
-                })
+            batch_docs.append({
+                "id": doc['_id'],
+                "content": f"{title}. {content}",
+                "ner": ner_results,
+                "candidates": candidate_results,
+                "lang": lang
+            })
 
-                if len(batch_docs) >= batch_size:
-                    self.process_and_save(batch_docs, vectorizer)
-                    batch_docs = []
-                    self.clear_memory()
-
-            if batch_docs:
+            if len(batch_docs) >= batch_size:
                 self.process_and_save(batch_docs, vectorizer)
+                batch_docs = []
                 self.clear_memory()
+
+        if batch_docs:
+            self.process_and_save(batch_docs, vectorizer)
+            self.clear_memory()
 
     def process_and_save(self, docs, vectorizer=None):
         actions = []

@@ -26,6 +26,7 @@ from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 from crawling.collectKoNews import runStandalone
 from crawling.collectEnNews import runCollector
 from crawling.collectEconomic import dailyJob
+from machineLearning.run import run
 from logs.logger import getLogger
 
 KO_SCHEDULES = [
@@ -82,11 +83,13 @@ def guarded(lock, job_name):
 @guarded(ko_lock, "KO Collector")
 def runKo():
     runStandalone()
+    run("ko")
 
 
 @guarded(en_lock, "EN Collector")
 def runEn():
     runCollector()
+    run("en")
 
 
 @guarded(eco_lock, "Economic Collector")

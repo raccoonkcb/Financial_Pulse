@@ -1,30 +1,26 @@
+import sys, os
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from starlette.middleware.sessions import SessionMiddleware
-import os
-from router.dashboardRouter import router as dashboardRouter
-from router.keywordRouter import router as keywordRouter
-from router.spikeRouter import router as spikeRouter
-from router.searchRouter import router as searchRouter
-from router.adminRouter import router as adminRouter
-from router.logRouter import router as logRouter
-from router.crawlRouter import router as crawlRouter
-from router.esRouter import router as esRouter
-from router.correctionRouter import router as correctionRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from starlette.middleware.sessions import SessionMiddleware
+
 
 from contextlib import asynccontextmanager
 from crawling.crawlSchedular import scheduler, addJobs
 from dataStorage.elasticSearch.esIndex import createAllIndices
 from dataStorage.mariaDb.db import createTables
+from logs.logger import getLogger
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+logger = getLogger("system")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ================================================================
     # 서버 시작 시 실행
     # ================================================================
-    print("[STARTUP] 인덱스 확인 중...")
+    logger.info("[STARTUP] 인덱스 확인", extra={"action": "MAIN"})
     createAllIndices()
     createTables()
 
@@ -33,7 +29,7 @@ async def lifespan(app: FastAPI):
     # test_mode=True  → 즉시 테스트 실행
     addJobs(test_mode=False)
     scheduler.start()
-    print("[STARTUP] 스케줄러 시작 완료")
+    logger.info("[STARTUP] 스케줄러 시작 완료", extra={"action": "MAIN"})
 
     yield  # 서버 실행 중
 
@@ -41,7 +37,7 @@ async def lifespan(app: FastAPI):
     # 서버 종료 시 실행
     # ================================================================
     scheduler.shutdown()
-    print("[SHUTDOWN] 스케줄러 종료 완료")
+    logger.error("[SHUTDOWN] 스케줄러 종료")
 
 app = FastAPI(lifespan=lifespan)
 
@@ -91,6 +87,15 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
 # 라우터 등록
 # ================================================================
 from router.memberRouter import router as memberRouter
+from router.dashboardRouter import router as dashboardRouter
+from router.keywordRouter import router as keywordRouter
+from router.spikeRouter import router as spikeRouter
+from router.searchRouter import router as searchRouter
+from router.adminRouter import router as adminRouter
+from router.logRouter import router as logRouter
+from router.crawlRouter import router as crawlRouter
+from router.esRouter import router as esRouter
+from router.correctionRouter import router as correctionRouter
 
 app.include_router(memberRouter)
 app.include_router(dashboardRouter)

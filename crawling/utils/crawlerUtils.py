@@ -26,7 +26,7 @@ def cleanupAllDrivers():
     if not _active_drivers:
         return
 
-    logger.info(f"[정리] 남아있는 드라이버 {len(_active_drivers)}개를 닫습니다..."
+    logger.info(f"[정리] 남아있는 드라이버 {len(_active_drivers)}개를 닫습니다."
                 , extra={"action" : "cleanupAllDrivers"})
     while _active_drivers:
         driver = _active_drivers.pop()
@@ -96,6 +96,7 @@ def extractContentWithJs(driver, title=""):
     본문 영역 우선 탐색 + JS 범용 추출 로직
     """
     # [1단계] 제목 기반 사전 필터링
+
     if not NewsCleaner.isValid("", title):
         return ""
 
