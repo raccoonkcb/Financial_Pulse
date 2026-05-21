@@ -277,7 +277,10 @@ function renderEcoScheduleFromApi(cid, schedule) {
         <div class="sch-date">${ev.date || ''}</div>
         <div class="sch-info">
           <div class="sch-name">${ev.event || ev['경제일정'] || ''}</div>
-          <span class="sch-imp">${label}</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span class="sch-imp">${label}</span>
+            <span style="font-size:13px;">${ev.country === '대한민국' ? '🇰🇷' : ev.country === '미국' ? '🇺🇸' : ''}</span>
+          </div>
         </div>
       </div>
     `;

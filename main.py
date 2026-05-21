@@ -82,8 +82,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
     print("[SHUTDOWN] 스케줄러 종료 완료")
 
-app = FastAPI()
-app.mount("/", StaticFiles(directory="view"), name="static")
+app = FastAPI(lifespan=lifespan)
 
 # ── HTML 라우트 (마운트보다 먼저 등록) ──
 @app.get("/")
@@ -143,3 +142,4 @@ app.include_router(crawlRouter)
 app.include_router(esRouter)
 app.include_router(correctionRouter)
 
+app.mount("/", StaticFiles(directory="view"), name="static")
