@@ -4,6 +4,9 @@ from concurrent.futures import ThreadPoolExecutor  # 이 줄이 반드시 있어
 from google import genai
 from google.genai import types
 from elasticsearch import Elasticsearch
+from logs.logger import getLogger
+logger = getLogger("ml")
+
 
 # [설정 영역]
 API_KEY = "" # <제미나이 api 키 넣어야함. 코드는 유료계정을 사용해야하며 만개 작업시 900 원정도 소모
@@ -96,7 +99,7 @@ def process_single_batch(batch_items, lang):
         )
         return json.loads(response.text), batch_items
     except Exception as e:
-        print(f"🚨 API 에러: {e}")
+        logger.error(f"API 에러", extra={"action": "process_single_batch", "err_msg": str(e)})
         return [], batch_items
 
 
@@ -108,7 +111,7 @@ def run_labeling():
     ]
 
     for task in tasks:
-        print(f"--- [{task['index']}] ({task['lang']}) 산업 중심 재분류 시작 ---")
+        logger.info(f"[{task['index']}] ({task['lang']}) 산업 중심 재분류 시작", extra={"action": "run_labeling"})
 
         query = {
             "query": {"function_score": {"query": {"match_all": {}}, "random_score": {}, "boost_mode": "replace"}},
@@ -120,7 +123,7 @@ def run_labeling():
             res = es.search(index=task['index'], body=query)
             all_docs = [d['_source'] for d in res['hits']['hits']]
         except Exception as e:
-            print(f"🚨 ES 조회 에러: {e}")
+            logger.error(f"ES 조회 에러", extra={"action": "run_labeling", "err_msg": str(e)})
             continue
 
         batches = [all_docs[i:i + BATCH_SIZE] for i in range(0, len(all_docs), BATCH_SIZE)]
@@ -142,7 +145,6 @@ def run_labeling():
 
                     results, batch_items = future.result()
                     result_map = {str(r.get('id')): r.get('sector') for r in results}
-
                     for item in batch_items:
                         doc_id = str(item['doc_id'])
                         sector = result_map.get(doc_id)
@@ -153,9 +155,9 @@ def run_labeling():
                             saved_count += 1
                             if saved_count >= TARGET_COUNT: break
 
-                    print(f"[{task['lang'].upper()}] 누적 유효 데이터: {saved_count}/{TARGET_COUNT}")
+                    logger.info(f"[{task['lang'].upper()}] 누적 유효 데이터: {saved_count}/{TARGET_COUNT}", extra={"action": "run_labeling"})
 
-    print("\n✅ 산업 중심 고순도 데이터셋 구축 완료!")
+    logger.info("산업 중심 고순도 데이터셋 구축 완료", extra={"action": "run_labeling"})
 
 
 if __name__ == "__main__":

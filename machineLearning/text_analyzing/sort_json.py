@@ -1,11 +1,14 @@
 import json
 import os
+from logs.logger import getLogger
+logger = getLogger("ml")
+
 
 
 def sort_json(filename):
     if not os.path.exists(filename):
         # 여기가 안 뜨면 파일 경로를 못 찾는 겁니다.
-        print(f"❌ [에러] 파일을 찾을 수 없습니다: {filename}")
+        logger.error(f"[에러] 파일을 찾을 수 없습니다: {filename}")
         return
 
     with open(filename, 'r', encoding='utf-8') as f:

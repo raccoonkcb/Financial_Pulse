@@ -8,6 +8,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chromium.options import ChromiumOptions
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from logs.logger import getLogger
+
+logger = getLogger("system")
 
 # 클리닝 유틸 임포트
 from .cleaningUtils import NewsCleaner
@@ -23,7 +26,8 @@ def cleanupAllDrivers():
     if not _active_drivers:
         return
 
-    print(f"\n[정리] 남아있는 드라이버 {len(_active_drivers)}개를 닫습니다...")
+    logger.info(f"[정리] 남아있는 드라이버 {len(_active_drivers)}개를 닫습니다..."
+                , extra={"action" : "cleanupAllDrivers"})
     while _active_drivers:
         driver = _active_drivers.pop()
         try:

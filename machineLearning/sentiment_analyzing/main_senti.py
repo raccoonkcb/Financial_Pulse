@@ -4,6 +4,9 @@ import math
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from elasticsearch import Elasticsearch, helpers
 from tqdm import tqdm
+from logs.logger import getLogger
+logger = getLogger("ml")
+
 
 # === [ 설정 영역 ] ===
 ES_URL = "http://100.88.143.23:9200/"
@@ -24,7 +27,7 @@ def run_sentiment_pipeline():
     start_time = time.time()
 
     for lang, model_name in MODELS.items():
-        print(f"\n [{lang.upper()}] 모델 로딩: {model_name} ({DEVICE})")
+        logger.info(f"[{lang.upper()}] 모델 로딩: {model_name} ({DEVICE})", extra={"action": "run_sentiment_pipeline"})
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         model = AutoModelForSequenceClassification.from_pretrained(model_name).to(DEVICE)
         model.eval()
@@ -119,7 +122,7 @@ def run_sentiment_pipeline():
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    print(f"\n 전체 감성 분석 완료: {round(time.time() - start_time, 2)}초")
+    logger.info(f"전체 감성 분석 완료: {round(time.time() - start_time, 2)}초", extra={"action": "run_sentiment_pipeline"})
 
 if __name__ == "__main__":
     run_sentiment_pipeline()

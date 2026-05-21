@@ -2,6 +2,8 @@ import json
 import os
 import time
 from google import genai
+from logs.logger import getLogger
+logger = getLogger("ml")
 
 class NormalizationManager:
     def __init__(self, api_key):
@@ -14,6 +16,7 @@ class NormalizationManager:
             'keyword': 'norm_keywords.json',
             'region': 'norm_region.json'
         }
+
 
         self.category_dicts = {cat: {} for cat in self.file_map}
         self.load_all()
@@ -29,7 +32,7 @@ class NormalizationManager:
 
     def fetch_new_matches(self, category, topic_description):
         current_dict = self.category_dicts.get(category, {})
-        print(f"\n🎯 [{category.upper()}] 정규화 사전 구축 중... (현재: {len(current_dict)}개)")
+        logger.info(f"[{category.upper()}] 정규화 사전 구축 중... (현재: {len(current_dict)}개)", extra={"action": "fetch_new_matches"})
 
         existing_keys = list(current_dict.keys())
 
@@ -104,14 +107,14 @@ class NormalizationManager:
 
                 if new_only:
                     self.save_to_file(category, new_only)
-                    print(f">> 완료: {len(new_only)}개의 고유 명칭 추가.")
+                    logger.info(f"완료: {len(new_only)}개의 고유 명칭 추가.", extra={"action": "fetch_new_matches"})
                 else:
-                    print(">> 새로운 데이터가 없습니다.")
+                    logger.warning("새로운 데이터가 없습니다.", extra={"action": "fetch_new_matches"})
             else:
-                print(">> JSON 형식을 찾을 수 없습니다.")
+                logger.warning("JSON 형식을 찾을 수 없습니다.", extra={"action": "fetch_new_matches"})
 
         except Exception as e:
-            print(f">> 에러 발생: {e}")
+            logger.error(f"에러 발생", extra={"action": "fetch_new_matches", "err_msg": str(e)})
             time.sleep(5)
 
     def save_to_file(self, category, new_data):
@@ -141,9 +144,9 @@ if __name__ == "__main__":
     ]
 
     for i in range(3):
-        print(f"\n--- {i + 1}회차 정규화 사전 수집 시작 ---")
+        print(f"{i + 1}회차 정규화 사전 수집 시작")
         for cat, topic in task_list:
             manager.fetch_new_matches(cat, topic)
             time.sleep(3)
 
-    print(f"\n✅ 정규화 사전 업데이트가 완료되었습니다.")
+    print(f"정규화 사전 업데이트 완료.")

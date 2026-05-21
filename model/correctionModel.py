@@ -10,8 +10,8 @@ class CorrectionRequest(BaseModel):
     → analyze 인덱스 + search 인덱스 동시 업데이트
     → 로그 기록
     """
-    doc_id:     str
-    tendency:   Literal["긍정", "부정", "중립"]
+    doc_id: str
+    tendency: Literal["positive", "negative", "neutral"]
     tend_score: float
 
 class ExportRequest(BaseModel):
