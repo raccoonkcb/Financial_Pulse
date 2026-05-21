@@ -10,6 +10,8 @@ from torch.optim import AdamW
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
+from logs.logger import getLogger
+logger = getLogger("ml")
 
 # === [ 1. 공통 설정 ] ===
 MAX_LEN = 256
@@ -77,7 +79,7 @@ def get_next_version_info(save_path):
             next_ver = current_ver + 1
             return f"sector_v{next_ver}"
     except Exception as e:
-        print(f"⚠️ 버전 읽기 실패(새로 시작): {e}")
+        logger.error(f"버전 읽기 실패(새로 시작)", extra={"action": "get_next_version_info", "err_msg": str(e)})
         return "sector_v1"
 
 
@@ -89,11 +91,11 @@ def train_model(config):
     # 차기 모델 버전 명칭 결정
     model_display_name = get_next_version_info(config['save_path'])
 
-    print(f"\n🚀 [{config['lang'].upper()}] 학습 시작")
-    print(f"📂 경로: {config['save_path']} | 🏷️ 적용될 모델명: {model_display_name}")
+    logger.info(f"[{config['lang'].upper()}] 학습 시작", extra={"action": "train_model"})
+    logger.info(f"경로: {config['save_path']} | 적용 모델: {model_display_name}", extra={"action": "train_model"})
 
     if not os.path.exists(config['csv_path']):
-        print(f"❌ 파일 없음: {config['csv_path']}, 건너뜁니다.")
+        logger.warning(f"파일 없음: {config['csv_path']}, 건너뜁니다.", extra={"action": "train_model"})
         return
 
     # 1. 데이터 로드 및 라벨링
@@ -152,7 +154,7 @@ def train_model(config):
     with open(f"{config['save_path']}/model_version.json", "w", encoding="utf-8") as f:
         json.dump(version_info, f, ensure_ascii=False, indent=4)
 
-    print(f"🎯 [{config['lang'].upper()}] {model_display_name} 저장 완료!\n")
+    logger.info(f"[{config['lang'].upper()}] {model_display_name} 저장 완료", extra={"action": "train_model"})
 
     # 메모리 정리
     del model

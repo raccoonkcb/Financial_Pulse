@@ -2,6 +2,9 @@ import json
 import os
 import time
 from SPARQLWrapper import SPARQLWrapper, JSON
+from logs.logger import getLogger
+logger = getLogger("ml")
+
 
 DATA_DIR = "dictionary"
 
@@ -57,7 +60,7 @@ def run_scraper(target_type, query_template):
     start_page = get_last_page(checkpoint_file)
     for page in range(start_page, start_page + 5):  # 5페이지씩 작업
         offset = page * 10
-        print(f"\n🚀 [{target_type} | 페이지 {page + 1}] 시작 (OFFSET {offset})...")
+        logger.info(f"[{target_type} | 페이지 {page + 1}] 시작 (OFFSET {offset})...", extra={"action": "run_scraper"})
 
         try:
             sparql.setQuery(query_template.format(offset=offset))
@@ -76,10 +79,10 @@ def run_scraper(target_type, query_template):
 
             save_data(target_dict, data_file)
             save_last_page(page + 1, checkpoint_file)
-            print(f"✅ {target_type}: {count}건 처리 완료.")
+            logger.info(f"{target_type}: {count}건 처리 완료.", extra={"action": "run_scraper"})
 
         except Exception as e:
-            print(f"⚠️ 요청 실패: {e}")
+            logger.error(f"요청 실패", extra={"action": "run_scraper", "err_msg": str(e)})
             break
         time.sleep(90)
 

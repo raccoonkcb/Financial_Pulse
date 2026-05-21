@@ -13,6 +13,8 @@ from flashtext import KeywordProcessor
 from keybert.backend import SentenceTransformerBackend
 from sklearn.metrics.pairwise import cosine_similarity
 from transformers import pipeline
+from logs.logger import getLogger
+logger = getLogger("ml")
 
 class TextAnalyzer:
     def __init__(self):
@@ -728,7 +730,7 @@ class TextAnalyzer:
                             if normalized_kw not in final_keywords:
                                 final_keywords.append(normalized_kw)
 
-                    print(f" ID: {d['id']} | 키워드 : {final_keywords[:10]}")
+                    # logger.info(f"ID: {d['id']} | 키워드 : {final_keywords[:10]}")
 
                 actions.append({
                     "_op_type": "update",
@@ -748,14 +750,14 @@ class TextAnalyzer:
                 })
 
             except Exception as e:
-                print(f"Error in doc loop (Skipping ID {d.get('id', 'Unknown')}): {e}")
+                logger.error(f"Error in doc loop (Skipping ID {d.get('id', 'Unknown')})", extra={"action": "process_and_save", "err_msg": str(e)})
                 continue
 
         if actions:
             try:
                 helpers.bulk(self.es, actions)
             except Exception as e:
-                print(f"ES Bulk Error: {e}")
+                logger.error(f"ES Bulk Error", extra={"action": "process_and_save", "err_msg": str(e)})
 
     def clear_memory(self):
         gc.collect()

@@ -6,6 +6,8 @@ import torch
 from elasticsearch import Elasticsearch, helpers
 from transformers import BertTokenizer, BertForSequenceClassification
 from tqdm import tqdm
+from logs.logger import getLogger
+logger = getLogger("ml")
 
 # === [ 설정 ] ===
 ES_URL = "http://100.88.143.23:9200/"
@@ -57,13 +59,13 @@ def predict(title, content, model, tokenizer, classes):
 
 
 def run_sector_sync():
-    print("--- 분석 및 데이터 동기화 시작 ---")
+    logger.info("분석 및 데이터 동기화 시작", extra={"action": "run_sector_sync"})
     for lang in ["ko", "en"]:
         origin_index = f"news_{lang}"
         model, tokenizer, classes, model_ver_tag = load_inference_resources(lang)
 
         if model is None:
-            print(f"[SKIP] {lang.upper()} 모델 경로가 없습니다.")
+            logger.warning(f"[SKIP] {lang.upper()} 모델 경로가 없다.", extra={"action": "run_sector_sync"})
             continue
 
         # 전체 개수 확인 (tqdm total 설정을 위함)
@@ -119,9 +121,9 @@ def run_sector_sync():
         if actions:
             helpers.bulk(es, actions)
 
-        print(f"[{lang.upper()}] 작업 완료")
+        logger.info(f"[{lang.upper()}] 작업 완료", extra={"action": "run_sector_sync"})
 
-    print("--- 모든 작업 완료 ---")
+    logger.info("분석 및 데이터 동기화 작업 완료", extra={"action": "run_sector_sync"})
 
 
 if __name__ == "__main__":

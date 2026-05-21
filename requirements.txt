@@ -31,3 +31,7 @@ tqdm
 spacy
 keybert
 sentence-transformers
+google-genai
+flashtext
+kiwipiepy
+SPARQLWrapper
