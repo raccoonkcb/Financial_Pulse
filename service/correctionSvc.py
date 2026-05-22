@@ -55,7 +55,7 @@ def applyCorrection(doc_id: str, tendency: str, tend_score: float) -> dict:
     관리자 보정 확정
     1. analyze 인덱스 업데이트
     2. search  인덱스 업데이트
-    3. 보정 로그 자동 기록 (logger → ESHandler → logs_ml)
+    3. 보정 로그 자동 기록 (logger → ESHandler → log_ml)
     """
     logger.info("보정 확정 시작", extra={
         "action": "applyCorrection", "doc_id": doc_id, "tendency": tendency, "tend_score": tend_score})
@@ -91,7 +91,7 @@ def deleteArticle(doc_id: str) -> dict:
 def exportCorrections(start_time: str, end_time: str) -> list:
     """
     보정 완료된 학습 데이터 JSONL 형식으로 내보내기
-    - logs_ml 에서 "보정 확정" 로그 조회
+    - log_ml 에서 "보정 확정" 로그 조회
     - ML 모델 재학습 데이터로 활용
     """
     logger.info("학습 데이터 내보내기 시작", extra={
@@ -99,7 +99,7 @@ def exportCorrections(start_time: str, end_time: str) -> list:
 
     es = getEs()
     docs = scan(
-        es, index="logs_ml",
+        es, index="log_ml",
         query={
             "query": {"bool": {"must": [
                 {"match": {"message": "보정 확정"}},

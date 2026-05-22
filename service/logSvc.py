@@ -37,7 +37,7 @@ def buildQuery(req: LogSearchRequest) -> dict:
 
 def searchLog(req: LogSearchRequest) -> dict:
     """
-    필터 조건으로 logs_all 에서 로그 조회
+    필터 조건으로 log_all 에서 로그 조회
     - level, subject, 시간 범위 필터
     - 최신순 정렬
     """
@@ -72,7 +72,7 @@ def getLogSummary(subject: str = None) -> dict:
     - crawCon 상단 집계 카드 처리
     """
     es   = getEs()
-    index = f"logs_{subject}" if subject else ALL_LOG_IDX
+    index = f"log_{subject}" if subject else ALL_LOG_IDX
 
     result = es.search(
         index=index,
@@ -150,7 +150,7 @@ def deleteLog(log_id: str) -> dict:
     try:
         doc = es.get(index=ALL_LOG_IDX, id=log_id)
         subject = doc["_source"].get("subject", "")
-        subject_index = f"logs_{subject}" if subject else None
+        subject_index = f"log_{subject}" if subject else None
 
         es.delete(index=ALL_LOG_IDX, id=log_id)
 

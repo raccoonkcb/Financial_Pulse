@@ -120,7 +120,7 @@ def addJobs(test_mode=False):
         scheduler.add_job(runKo, hour=h, minute=m, id=f"ko_{label}", **job_defaults)
 
     # EN 뉴스
-    for t, label in [("01:10", "미국 장 중간 흐름"), ("06:10", "장마감"), ("21:00", "개장전")]:
+    for t, label in [("01:10", "중간 흐름"), ("06:10", "장마감"), ("21:00", "개장전")]:
         h, m = map(int, t.split(":"))
         scheduler.add_job(runEn, hour=h, minute=m, id=f"en_{label}", **job_defaults)
 

@@ -19,7 +19,7 @@ logger = getLogger("system")
 #
 #     # 크롤링 종료 로그에서 crawl_cnt 조회
 #     log_result = es.search(
-#         index="logs_crawl",
+#         index="log_crawl",
 #         body={
 #             "query": {"bool": {"must": [
 #                 {"term":  {"extra.batch_id": batch_id}},
@@ -75,7 +75,7 @@ def getMissingUrl(lang: str = "ko") -> dict:
     target_index = NEWS_KO_IDX if lang == "ko" else NEWS_EN_IDX
 
     log_docs = scan(
-        es, index="logs_crawl",
+        es, index="log_crawl",
         query={"query": {"match_all": {}}},
         size=10000
     )
@@ -134,11 +134,11 @@ def getIndexStatus() -> dict:
         {"name": "news_ko", "index": NEWS_KO_IDX},
         {"name": "news_en", "index": NEWS_EN_IDX},
         {"name": "analyze", "index": ANALYZE_DATA_IDX},
-        {"name": "logs_all", "index": ALL_LOG_IDX},
-        {"name": "logs_crawl", "index": "logs_crawl"},
-        {"name": "logs_ml", "index": "logs_ml"},
-        {"name": "logs_system", "index": "logs_system"},
-        {"name": "logs_user", "index": "logs_user"},
+        {"name": "log_all", "index": ALL_LOG_IDX},
+        {"name": "log_crawl", "index": "log_crawl"},
+        {"name": "log_ml", "index": "log_ml"},
+        {"name": "log_system", "index": "log_system"},
+        {"name": "log_user", "index": "log_user"},
     ]
 
     result = []
@@ -154,7 +154,7 @@ def getIndexStatus() -> dict:
 
         if target["index"] in [NEWS_KO_IDX, NEWS_EN_IDX]:
             log_result = es.search(
-                index="logs_crawl",
+                index="log_crawl",
                 body={
                     "query": {"match": {"message": "크롤링 배치 종료"}},
                     "sort": [{"timestamp": {"order": "desc"}}],

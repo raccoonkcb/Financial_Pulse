@@ -17,7 +17,7 @@ class LogSearchRequest(BaseModel):
 
 class LogWriteRequest(BaseModel):
     """ 로그 기록 요청
-    - subject : 로그 주제 --> logs_{subject} 인덱스에 저장
+    - subject : 로그 주제 --> log_{subject} 인덱스에 저장
     - level   : 로그 레벨
     - message : 로그 메시지
     - extra   : 자유 필드 --> 단계별로 다른 데이터 저장 가능

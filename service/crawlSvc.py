@@ -123,7 +123,7 @@ def getCrawlSummary() -> dict:
 
 def getErrorLogC(batch_id: str= None) -> list:
     """
-    logs_crawl 에서 특정 배치의 ERROR 로그를 조회
+    log_crawl 에서 특정 배치의 ERROR 로그를 조회
     - crawCon 오류 목록 테이블 처리
     - batch_id가 있으면 해당 배치의 오류만 조회
     - batch_id가 없으면 전체 오류 조회

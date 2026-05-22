@@ -1,7 +1,7 @@
 from dataStorage.elasticSearch.es import getEs, LOG_INDICES, ALL_LOG_IDX, NEWS_EN_IDX, NEWS_KO_IDX, ANALYZE_DATA_IDX
 
 # ================================================================
-# 로그 인덱스 매핑 (logs_crawl, logs_ml, logs_system, logs_user, logs_all)
+# 로그 인덱스 매핑 (log_crawl, log_ml, log_system, log_user, log_all)
 LOG_MAPPING = {
     "settings": {
         "number_of_shards": 3,      # 데이터를 3개 샤드로 분산 저장
