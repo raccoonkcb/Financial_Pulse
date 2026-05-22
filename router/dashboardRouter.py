@@ -142,6 +142,27 @@ def buildMsearch(doc_ids_today: list, doc_ids_week: list) -> list:
         # G — 7일 sector × tendency (6번)
         {},
         {"query": {"bool": {"filter": filter_week}}, "size": 0, "aggs": sector_agg},
+
+        # H — 오늘 섹터별 기사 top5 (모달용)  ← 추가
+        {},
+        {
+            "query": {"bool": {"filter": filter_today}},
+            "size": 0,
+            "aggs": {
+                "sector_breakdown": {
+                    "terms": {"field": "sector", "size": 7},
+                    "aggs": {
+                        "top_articles": {
+                            "top_hits": {
+                                "size": 10,
+                                "sort": [{"tend_score": {"order": "desc"}}],
+                                "_source": ["title", "tendency", "tend_score", "doc_id"]
+                            }
+                        }
+                    }
+                }
+            }
+        },
     ]
     return searches
 
@@ -262,7 +283,7 @@ def buildHotIssues(res_b: dict, res_c: dict) -> list:
     return issues[:6]
 
 
-def buildSpikeAndSector(res_f: dict, res_g: dict):
+def buildSpikeAndSector(res_f: dict, res_g: dict, res_h: dict = None, es=None, news_index: str = None):
     today_ratios = calcSectorRatios(
         res_f.get("aggregations", {}).get("sector_breakdown", {}).get("buckets", [])
     )
@@ -270,13 +291,38 @@ def buildSpikeAndSector(res_f: dict, res_g: dict):
         res_g.get("aggregations", {}).get("sector_breakdown", {}).get("buckets", [])
     )
 
-    # ← 오늘 + 7일 전체 섹터 합집합
+    # res_h에서 섹터별 기사 추출
+    sector_articles = {}
+    if res_h:
+        for b in res_h.get("aggregations", {}).get("sector_breakdown", {}).get("buckets", []):
+            sector = translateSector(b["key"])
+            hits   = b.get("top_articles", {}).get("hits", {}).get("hits", [])
+            articles = []
+            for h in hits:
+                source = h["_source"]
+                doc_id = h.get("_id") or source.get("doc_id")
+                url = None
+                if doc_id and es and news_index:
+                    try:
+                        news_res = es.get(index=news_index, id=doc_id, _source=["url"])
+                        url = news_res["_source"].get("url")
+                    except:
+                        pass
+                articles.append({
+                    "title"     : source.get("title", ""),
+                    "tendency"  : source.get("tendency", ""),
+                    "tend_score": source.get("tend_score", 0),
+                    "url"       : url,
+                })
+            sector_articles[sector] = articles
+
+    # 오늘 + 7일 전체 섹터 합집합
     all_sectors = set(today_ratios.keys()) | set(week_ratios.keys())
 
     spike_analysis = []
     for sector in all_sectors:
-        today        = today_ratios.get(sector, {"pos": 0.0, "neg": 0.0, "total": 0, "_pos_count": 0, "_neg_count": 0})
-        week         = week_ratios.get(sector,  {"pos": 0.0, "neg": 0.0, "total": 0})
+        today          = today_ratios.get(sector, {"pos": 0.0, "neg": 0.0, "total": 0, "_pos_count": 0, "_neg_count": 0})
+        week           = week_ratios.get(sector,  {"pos": 0.0, "neg": 0.0, "total": 0})
         week_avg_total = round(week["total"] / 7, 1)
         spike_analysis.append({
             "sector"  : sector,
@@ -286,6 +332,7 @@ def buildSpikeAndSector(res_f: dict, res_g: dict):
                 "pos": round(today["pos"] - week["pos"], 1),
                 "neg": round(today["neg"] - week["neg"], 1),
             },
+            "articles": sector_articles.get(sector, [])
         })
     spike_analysis.sort(key=lambda x: abs(x["change"]["pos"]), reverse=True)
 
@@ -294,7 +341,6 @@ def buildSpikeAndSector(res_f: dict, res_g: dict):
         for s in all_sectors
     ]
     return spike_analysis, sector_tendency
-
 
 # ================================================================
 # 9번 — 경제지표 (DB)
@@ -369,15 +415,12 @@ def getDashboard(lang: str = "ko"):
     """
     start, end = getTodayRange(lang)
     week_ago = (date.today() - timedelta(days=7)).isoformat()
-    # today = "2026-03-30"
-    # week_ago = "2026-03-23"
 
-    # ── ES — news 인덱스에서 doc_id 수집 후 analyze msearch ────
     news_index = NEWS_KO_IDX if lang == "ko" else NEWS_EN_IDX
     es = getEs()
     try:
         doc_ids_today = getDocIds(es, news_index, start, end)
-        doc_ids_week = getDocIds(es, news_index, week_ago, end)
+        doc_ids_week  = getDocIds(es, news_index, week_ago, end)
 
         if not doc_ids_today:
             logger.warning("오늘 기사 없음 — 빈 데이터 반환", extra={
@@ -390,8 +433,15 @@ def getDashboard(lang: str = "ko"):
         ms_result = es.msearch(index=ANALYZE_DATA_IDX, body=searches)
         responses = ms_result.get("responses", [])
 
-        if len(responses) < 6:
+        if len(responses) < 7:
             raise ValueError(f"msearch 응답 부족: {len(responses)}개")
+
+        res_a, res_b, res_c, res_d, res_f, res_g, res_h = responses[:7]
+
+        # es.close() 전에 호출 (URL 조회용 es 사용)
+        spike_analysis, sector_tendency = buildSpikeAndSector(
+            res_f, res_g, res_h, es=es, news_index=news_index
+        )
 
     except Exception as e:
         import traceback
@@ -405,23 +455,19 @@ def getDashboard(lang: str = "ko"):
     finally:
         es.close()
 
-    res_a, res_b, res_c, res_d, res_f, res_g = responses[:6]
-
     # ── 번호별 조립 ─────────────────────────────────────────────
     # 1번 + 7번: 전체 분위기 + 시장 성향 (쿼리 A)
-    tendency, market_tendency    = buildTendency(res_a)
+    tendency, market_tendency = buildTendency(res_a)
     # 2번: 오늘 기사량 1위 섹터 (쿼리 F)
     top_keyword = buildTopSector(res_f)
     # 3번 + 4번: 긍정 1위 + 부정 1위 키워드 (쿼리 D)
-    pos_keyword, neg_keyword     = buildPosNegKeyword(res_d, None, tendency["total"])
+    pos_keyword, neg_keyword = buildPosNegKeyword(res_d, None, tendency["total"])
     # 5번: 핫이슈 키워드 Top6 (쿼리 B)
-    hot_issues                   = buildHotIssues(res_b, res_c)
-    # 6번 + 8번: 급등 분석 + 섹터별 성향 (쿼리 F, G)
-    spike_analysis, sector_tendency = buildSpikeAndSector(res_f, res_g)
+    hot_issues = buildHotIssues(res_b, res_c)
     # 9번: 경제지표 (MariaDB)
-    eco_indicators               = getEcoIndicators()
+    eco_indicators = getEcoIndicators()
     # 10번: 경제 일정 (CSV)
-    eco_schedule                 = getEcoSchedule()
+    eco_schedule = getEcoSchedule()
 
     logger.info("대시보드 조회 성공", extra={
         "action": "dashboard_fetch",
