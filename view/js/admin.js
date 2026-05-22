@@ -130,16 +130,12 @@ function _calcStats(logs){
 // ── 로그 뷰어 페이지 (탭, 필터 바, 통계 카드, 로그 테이블)
 function _renderLogPage(page){
   const main = document.getElementById('admMain');
-  const esLabel = {'전체':'전체 ES','crawl':'크롤링 ES','system':'시스템 ES','ml':'머신러닝 ES','user':'로그인 ES'};
+  
 
   main.innerHTML = `
     <h2 style="font-size:20px;font-weight:900;color:var(--navy);display:flex;align-items:center;gap:10px;">
       <i class="fas fa-list" style="color:var(--teal);"></i> 로그 뷰어
-    </h2>
-
-    <div class="adm-tabs" id="admEsTabs">
-      ${ADM_SUBJECTS.map(s=>`<button class="adm-tab${s==='전체'?' active':''}" data-es="${s}">${esLabel[s]||s}</button>`).join('')}
-    </div>
+    </h2>    
 
     <div class="adm-filter-bar">
       <div>
@@ -173,24 +169,61 @@ function _renderLogPage(page){
 
     <div class="adm-log-wrap">
       <div class="adm-log-toolbar">
-        <div class="alt-title"><i class="fas fa-table-list" style="color:var(--teal);"></i> 로그 목록 <span id="admLogCount" style="font-size:12px;color:var(--sub);font-weight:600;"></span></div>
-        <div class="alt-actions">
-          <button class="adm-btn adm-btn-ghost" id="admExportBtn"><i class="fas fa-download"></i> CSV 내보내기</button>
-        </div>
+        <div class="alt-title"><i class="fas fa-table-list" style="color:var(--teal);"></i> 로그 목록 <span id="admLogCount" style="font-size:12px;color:var(--sub);font-weight:600;"></span></div>        
       </div>
       <div style="overflow-x:auto;">
         <table class="adm-table" id="admLogTable">
           <thead><tr><th>타임스탬프</th><th>주체</th><th>레벨</th><th>메시지</th></tr></thead>
           <tbody id="admLogBody"></tbody>
         </table>
+        <div id="logPagination"></div>
       </div>
     </div>
   `;
-
-  let curEs = '전체';
+  
   let curFiltered = [..._admLogs];
+  let currentPage = 1;
+  const pageSize = 50;
+  let currentFullLogs = [];
 
-  function _renderStats(logs){
+  function _renderPagination(totalPages, currentPage, onPageChange) {
+    const container = document.getElementById('logPagination');
+    if (!container) return;
+    if (totalPages <= 1) {
+      container.innerHTML = '';
+      return;
+    }
+    let html = '<div class="pagination">';
+    html += `<button class="page-prev" ${currentPage === 1 ? 'disabled' : ''}>◀</button>`;
+    let start = Math.max(1, currentPage - 3);
+    let end = Math.min(totalPages, start + 6);
+    for (let i = start; i <= end; i++) {
+      html += `<button class="page-num ${i === currentPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
+    }
+    html += `<button class="page-next" ${currentPage === totalPages ? 'disabled' : ''}>▶</button>`;
+    html += '</div>';
+    container.innerHTML = html;
+
+    // ✅ 이벤트 바인딩 추가 (기존에 빠져 있었음)
+    container.querySelectorAll('.page-prev').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (currentPage > 1) onPageChange(currentPage - 1);
+      });
+    });
+    container.querySelectorAll('.page-next').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (currentPage < totalPages) onPageChange(currentPage + 1);
+      });
+    });
+    container.querySelectorAll('.page-num').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const page = parseInt(e.currentTarget.dataset.page);
+        if (!isNaN(page) && page !== currentPage) onPageChange(page);
+      });
+    });
+  }
+
+  function _renderStats(logs){    
     const s = _calcStats(logs);
     document.getElementById('admStatsGrid').innerHTML = `
       <div class="adm-stat-card asc-info"><div class="asc-label">총 로그</div><div class="asc-val">${s.total.toLocaleString()}</div><div class="asc-sub">전체 기간</div></div>
@@ -199,21 +232,37 @@ function _renderLogPage(page){
       <div class="adm-stat-card asc-ok"><div class="asc-label"> INFO/DEBUG</div><div class="asc-val">${s.INFO + s.DEBUG}</div><div class="asc-sub">정상 완료</div></div>
     `;
   }
-
-  function _renderTable(logs){
-    curFiltered = logs;
-    document.getElementById('admLogCount').innerText = `(${logs.length.toLocaleString()}건)`;
+  
+  function _renderTable(logs) {
+    currentFullLogs = logs;                       // 전체 저장
+    const totalPages = Math.ceil(logs.length / pageSize);
+    const startIdx = (currentPage - 1) * pageSize;
+    const pageLogs = logs.slice(startIdx, startIdx + pageSize);
+    
+    // 테이블 바디 렌더링
     const tbody = document.getElementById('admLogBody');
-    if(!logs.length){ tbody.innerHTML=`<td><td colspan="5" style="text-align:center;padding:30px;color:var(--sub);">검색 결과가 없습니다.</td></tr>`; return; }
-    tbody.innerHTML = logs.slice(0,200).map(l=>`
-      <tr>
-        <td style="white-space:nowrap;font-family:monospace;font-size:11.5px;color:var(--sub);">${l.timestamp}</td>
-        <td><span style="font-weight:700;font-size:12px;">${l.subject}</span></td>
-        <td>${_lvlBadge(l.level)}</td>
-        <td class="log-msg">${l.message}</td>
-      </tr>`).join('');
+    document.getElementById('admLogCount').innerText = `(${logs.length.toLocaleString()}건)`;
+    if (!pageLogs.length) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;">검색 결과가 없습니다.</td></tr>`;
+    } else {
+      tbody.innerHTML = pageLogs.map(l => `
+        <tr>
+          <td style="white-space:nowrap; font-family:monospace;">${l.timestamp}</td>
+          <td><span style="font-weight:700;">${l.subject}</span></td>
+          <td>${_lvlBadge(l.level)}</td>
+          <td class="log-msg">${l.message}</td>
+        </tr>
+      `).join('');
+    }
     _renderStats(logs);
+    
+    // 페이지네이션 렌더링
+    _renderPagination(totalPages, currentPage, (newPage) => {
+      currentPage = newPage;
+      _renderTable(currentFullLogs);
+    });
   }
+
 
   async function _doFilter() {
   const level   = document.getElementById('admLevelFilter').value;
@@ -230,23 +279,10 @@ function _renderLogPage(page){
     to     : to   || null,
     keyword: kw   || null,
   });
+  currentPage = 1;
   _renderTable(logs);
 }
 
-  // ── 탭 클릭: subject 드롭다운 건드리지 않고 curEs만 변경
-document.getElementById('admEsTabs').addEventListener('click', async e => {
-  const btn = e.target.closest('.adm-tab');
-  if (!btn) return;
-  document.querySelectorAll('.adm-tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  curEs = btn.dataset.es;
-
-  // ← 검색 필터(admSubjectFilter)는 건드리지 않음
-  const esSubject = curEs === '전체' ? null : curEs;
-  const logs = await _fetchAdminLogs({ subject: esSubject });
-  _admLogs = logs;
-  _doFilter();
-});
 
 document.getElementById('admSearchBtn').addEventListener('click', async () => _doFilter());
 
@@ -267,14 +303,14 @@ document.getElementById('admKeyword').addEventListener('keydown', e => {
 });
   document.getElementById('admKeyword').addEventListener('keydown', e=>{ if(e.key==='Enter') _doFilter(); });
 
-  document.getElementById('admExportBtn').addEventListener('click', ()=>{
-    const rows = [['ID','타임스탬프','주체','레벨','메시지'], ...curFiltered.map(l=>[l.id,l.timestamp,l.subject,l.level,'"'+l.message.replace(/"/g,'""')+'"'])];
-    const csv = rows.map(r=>r.join(',')).join('\n');
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
-    a.download = 'fp_logs_'+new Date().toISOString().slice(0,10)+'.csv';
-    a.click();
-  });
+  // document.getElementById('admExportBtn').addEventListener('click', ()=>{
+  //   const rows = [['ID','타임스탬프','주체','레벨','메시지'], ...curFiltered.map(l=>[l.id,l.timestamp,l.subject,l.level,'"'+l.message.replace(/"/g,'""')+'"'])];
+  //   const csv = rows.map(r=>r.join(',')).join('\n');
+  //   const a = document.createElement('a');
+  //   a.href = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  //   a.download = 'fp_logs_'+new Date().toISOString().slice(0,10)+'.csv';
+  //   a.click();
+  // });
 
   _renderTable(_admLogs);
 }
@@ -353,8 +389,9 @@ function _renderRealtimePage(){
   });
 }
 
-// ── 크롤링 관리 페이지 (오류 로그 테이블, 재시도 버튼)
 async function _renderCrawlerPage() {
+  let errorPage = 1;
+  const errorPageSize = 50;
   const main = document.getElementById('admMain');
 
   main.innerHTML = `<div style="padding:40px;text-align:center;color:var(--sub);"><i class="fas fa-spinner fa-spin"></i> 불러오는 중...</div>`;
@@ -390,39 +427,103 @@ async function _renderCrawlerPage() {
       <div class="adm-stat-card asc-ok"><div class="asc-label">마지막 실행</div><div class="asc-val" style="font-size:14px;">${lastRun}</div><div class="asc-sub">최근 로그 기준</div></div>
     </div>
     <div class="adm-log-wrap">
-      <div class="adm-log-toolbar">
+      <div class="adm-log-toolbar">      
         <div class="alt-title"><i class="fas fa-spider" style="color:var(--teal);"></i> 크롤링 로그 (오류 우선) <span style="font-size:12px;color:var(--sub);font-weight:600;">(${errorLogs.length}건)</span></div>
         <div class="alt-actions">
-          <button class="adm-btn adm-btn-primary" id="openErrorRetryBtn"><i class="fas fa-rotate-right"></i> 오류 재시도</button>
+          <button class="adm-btn adm-btn-primary" id="openErrorRetryBtn"><i class="fas fa-rotate-right"></i> 오류 관리</button>
         </div>
       </div>
       <div style="overflow-x:auto;">
         <table class="adm-table">
           <thead>
-            <tr><th>타임스탬프</th><th>레벨</th><th>메시지</th></tr>
+            <tr><th>타임스탬프</th><th>레벨</th><th>메시지</th></tr>            
           </thead>
-          <tbody>
-            ${errorLogs.length ? errorLogs.slice(0, 50).map(l => `
-              <tr>
-                <td style="white-space:nowrap;font-family:monospace;font-size:11.5px;">${l.timestamp}</td>
-                <td>${_lvlBadge(l.level)}</td>
-                <td class="log-msg">${l.message}</td>
-              </tr>
-            `).join('') : '<tr><td colspan="3" style="text-align:center;padding:30px;color:var(--sub);">오류 로그가 없습니다.</td></tr>'}
-          </tbody>
+          <tbody id="crawlErrorTableBody"></tbody>          
         </table>
       </div>
+      <div id="crawlPagination"></div>
     </div>
   `;
+
+  // 페이징 관련 변수 및 함수    
+  const totalErrorPages = Math.ceil(errorLogs.length / errorPageSize);
+
+  function renderErrorTable() {
+    const start = (errorPage - 1) * errorPageSize;
+    const pagedErrors = errorLogs.slice(start, start + errorPageSize);
+    const tbody = document.getElementById('crawlErrorTableBody');
+    if (!tbody) return;
+    if (pagedErrors.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">오류 로그가 없습니다.</td></tr>`;
+    } else {
+      tbody.innerHTML = pagedErrors.map(l => `
+        <tr>
+          <td style="white-space:nowrap;">${l.timestamp}</td>
+          <td>${_lvlBadge(l.level)}</td>
+          <td class="log-msg">${l.message}</td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  function renderPagination() {
+    const container = document.getElementById('crawlPagination');
+    if (!container) return;
+    if (totalErrorPages <= 1) {
+      container.innerHTML = '';
+      return;
+    }
+    let html = '<div class="pagination">';
+    html += `<button class="page-prev" ${errorPage === 1 ? 'disabled' : ''}>◀</button>`;
+    let start = Math.max(1, errorPage - 3);
+    let end = Math.min(totalErrorPages, start + 6);
+    for (let i = start; i <= end; i++) {
+      html += `<button class="page-num ${i === errorPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
+    }
+    html += `<button class="page-next" ${errorPage === totalErrorPages ? 'disabled' : ''}>▶</button>`;
+    html += '</div>';
+    container.innerHTML = html;
+
+    container.querySelectorAll('.page-prev').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (errorPage > 1) {
+          errorPage--;
+          renderErrorTable();
+          renderPagination();
+        }
+      });
+    });
+    container.querySelectorAll('.page-next').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (errorPage < totalErrorPages) {
+          errorPage++;
+          renderErrorTable();
+          renderPagination();
+        }
+      });
+    });
+    container.querySelectorAll('.page-num').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const page = parseInt(e.currentTarget.dataset.page);
+        if (!isNaN(page) && page !== errorPage) {
+          errorPage = page;
+          renderErrorTable();
+          renderPagination();
+        }
+      });
+    });
+  }
+
+  renderErrorTable();
+  renderPagination();
 
   const retryBtn = document.getElementById('openErrorRetryBtn');
   if (retryBtn) {
     retryBtn.addEventListener('click', openErrorRetryModal);
   }
-}
+}  
 
-// ES 인덱스 관리: 인덱스 현황, 누락 URL 목록, 재수집 버튼
-async function _renderEsPage(){
+async function _renderEsPage() {
   const main = document.getElementById('admMain');
 
   main.innerHTML = `<div style="padding:40px;text-align:center;color:var(--sub);"><i class="fas fa-spinner fa-spin"></i> 불러오는 중...</div>`;
@@ -438,26 +539,33 @@ async function _renderEsPage(){
     indices = (data.data || data).indices || [];
   } catch(e) { console.warn('ES status 실패:', e); }
 
-  // missing_cnt > 0 인 인덱스만 누락 URL 섹션 표시
-  const missingIndices = indices.filter(idx => idx.missing_cnt > 0);
+  // 오늘 날짜를 기본값으로 설정 (YYYY-MM-DD)
+  const today = new Date().toISOString().slice(0, 10);
 
   main.innerHTML = `
     <div class="page-title">
-      <i class="fas fa-database" style="color:var(--teal);"></i> ES 인덱스 관리
+      <i class="fas fa-database" style="color:var(--teal);"></i> 아카이빙
     </div>
+
+    <!-- 필터 바 (날짜 선택) -->
+    <div class="adm-filter-bar">
+      <div>
+        <label>날짜</label>
+        <input type="date" id="archiveDate" value="${today}">
+      </div>
+    </div>
+
     <div class="adm-log-wrap">
-      <div class="adm-log-toolbar"><div class="alt-title">인덱스 현황</div></div>
+      <div class="adm-log-toolbar">
+        <div class="alt-title">인덱스 현황</div>
+      </div>
       <div style="overflow-x:auto;">
-        <table class="adm-table" style="min-width: 800px;">
+        <table class="adm-table" style="min-width: 400px;">
           <thead>
             <tr>
-              <th style="width:20%">인덱스명</th>
-              <th style="width:15%">문서수</th>
-              <th style="width:15%">crawl_cnt</th>
-              <th style="width:15%">save_cnt</th>
-              <th style="width:15%">missing_cnt</th>
-              <th style="width:12%">상태</th>
-              <th style="width:8%"></th>
+              <th>인덱스명</th>
+              <th>문서수</th>
+              <th>CSV 내보내기</th>
             </tr>
           </thead>
           <tbody>
@@ -465,43 +573,72 @@ async function _renderEsPage(){
               <tr>
                 <td><strong>${idx.index}</strong></td>
                 <td>${idx.total.toLocaleString()}</td>
-                <td>${idx.crawl_cnt ?? '-'}</td>
-                <td>${idx.save_cnt ?? '-'}</td>
-                <td style="color:${idx.missing_cnt > 0 ? 'var(--neg)' : 'inherit'};font-weight:${idx.missing_cnt > 0 ? '800' : 'normal'};">${idx.missing_cnt}</td>
-                <td><span class="log-badge ${idx.status === '누락감지' ? 'log-warn' : 'log-success'}">${idx.status}</span></td>
-                <td>${idx.missing_cnt > 0 ? `<button class="adm-btn adm-btn-primary recollect-btn" data-index="${idx.index}" data-missing="${idx.missing_cnt}" style="font-size:11px;">재수집</button>` : ''}</td>
+                <td>
+                  <button class="adm-btn adm-btn-ghost archive-csv-btn" data-index="${idx.index}" style="font-size:12px;">
+                    <i class="fas fa-download"></i> CSV
+                  </button>
+                </td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       </div>
     </div>
-    ${missingIndices.length > 0 ? `
-    <div class="adm-log-wrap" style="margin-top:20px;">
-      <div class="adm-log-toolbar"><div class="alt-title">누락 URL 목록</div></div>
-      <div style="overflow-x:auto;">
-        <table class="adm-table" style="min-width: 700px;">
-          <thead>
-            <tr>
-              <th style="width:45%">URL</th>
-              <th style="width:20%">제목</th>
-              <th style="width:10%">국가</th>
-              <th style="width:15%">상태</th>
-              <th style="width:10%">액션</th>
-            </tr>
-          </thead>
-          <tbody id="missingUrlTableBody"></tbody>
-        </table>
-      </div>
-    </div>` : ''}
   `;
 
-  // 재수집 버튼 이벤트
-  document.querySelectorAll('.recollect-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const missingCount = btn.getAttribute('data-missing') || '0';
+  // CSV 내보내기 버튼 이벤트 (각 행)
+  document.querySelectorAll('.archive-csv-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
       const indexName = btn.getAttribute('data-index');
-      showRecollectConfirmModal(missingCount, indexName);
+      const date = document.getElementById('archiveDate').value;
+      if (!date) {
+        showToast('날짜를 선택하세요.');
+        return;
+      }
+
+      try {
+        showToast(`📦 ${indexName} 인덱스의 ${date} 데이터 요청 중...`);
+        const response = await fetch(BASE_URL + '/logs/archive', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            index: indexName,
+            date: date   // "2026-05-07" 형식 (연-월-일)
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || '아카이빙 실패');
+        }
+
+        // CSV 파일 다운로드
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+
+        // Content-Disposition 헤더에서 파일명 추출 시도
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = `${indexName}_${date}.csv`;
+        if (contentDisposition) {
+          const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+          if (match && match[1]) {
+            filename = match[1].replace(/['"]/g, '');
+          }
+        }
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        showToast(`✅ ${indexName} 인덱스 CSV 다운로드 완료`);
+      } catch (err) {
+        console.error(err);
+        showToast(`❌ 아카이빙 실패: ${err.message}`);
+      }
     });
   });
 }
@@ -837,28 +974,43 @@ async function _renderCorrectionPage() {
       <div style="overflow-x:auto;">
         <table class="adm-table" id="correctionTable">
           <thead><tr><th>제목</th><th style="width:40%">URL</th><th>tend_score</th><th>tendency</th><th style="width:100px">처리</th></tr></thead>
-          <tbody id="correctionTableBody">
-            ${reviewItems.map(item => `
-              <tr data-id="${item.id}" data-title="${item.title.replace(/"/g, '&quot;')}" data-url="${item.url}" data-score="${item.score}" data-tendency="${item.tendency}">
-                <td><strong>${item.title}</strong></td>
-                <td class="log-msg">
-                  <a href="${item.url}" target="_blank" rel="noopener"
-                     title="${item.url}"
-                     style="color:var(--teal);text-decoration:none;">
-                    ${item.url.length > 30 ? item.url.slice(0, 30) + '...' : item.url}
-                  </a>
-                </td>
-                <td style="color:${getScoreColor(item.score)}; font-weight:800;">${item.score}</td>
-                <td><span class="log-badge ${getTendencyClass(item.tendency)}">${item.tendency}</span></td>
-                <td><button class="adm-btn adm-btn-primary edit-correction-btn" data-id="${item.id}" style="font-size:12px; padding:6px 14px;"><i class="fas fa-pen"></i> 수정</button></td>
-              </tr>
-            `).join('')}
-          </tbody>
+          <tbody id="correctionTableBody"></tbody>          
         </table>
+        <div id="correctionPagination"></div>
       </div>
     </div>
   `;
 
+  // 페이징 관련 변수
+let correctionPage = 1;
+const correctionPageSize = 50;
+let currentReviewItems = reviewItems;   // 전체 항목 저장
+
+// 테이블 렌더링 함수 (페이징 적용)
+function renderCorrectionTable() {
+  const totalPages = Math.ceil(currentReviewItems.length / correctionPageSize);
+  const start = (correctionPage - 1) * correctionPageSize;
+  const pagedItems = currentReviewItems.slice(start, start + correctionPageSize);
+  const tbody = document.getElementById('correctionTableBody');
+  if (!tbody) return;
+  if (pagedItems.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">검토 항목이 없습니다.</td></tr>`;
+  } else {
+    tbody.innerHTML = pagedItems.map(item => `
+      <tr data-id="${item.id}" data-title="${item.title.replace(/"/g, '&quot;')}" data-url="${item.url}" data-score="${item.score}" data-tendency="${item.tendency}">
+        <td><strong>${item.title}</strong></td>
+        <td class="log-msg">
+          <a href="${item.url}" target="_blank" rel="noopener" title="${item.url}" style="color:var(--teal);text-decoration:none;">
+            ${item.url.length > 30 ? item.url.slice(0, 30) + '...' : item.url}
+          </a>
+        </td>
+        <td style="color:${getScoreColor(item.score)}; font-weight:800;">${item.score}</td>
+        <td><span class="log-badge ${getTendencyClass(item.tendency)}">${item.tendency}</span></td>
+        <td><button class="adm-btn adm-btn-primary edit-correction-btn" data-id="${item.id}" style="font-size:12px; padding:6px 14px;"><i class="fas fa-pen"></i> 수정</button></td>
+      </tr>
+    `).join('');
+  }
+  // 수정 버튼 이벤트 다시 바인딩
   document.querySelectorAll('.edit-correction-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const row = btn.closest('tr');
@@ -872,6 +1024,62 @@ async function _renderCorrectionPage() {
       openConfirmCorrectionModal();
     });
   });
+}
+
+// 페이지네이션 UI 렌더링 함수
+function renderCorrectionPagination() {
+  const container = document.getElementById('correctionPagination');
+  if (!container) return;
+  const totalPages = Math.ceil(currentReviewItems.length / correctionPageSize);
+  if (totalPages <= 1) {
+    container.innerHTML = '';
+    return;
+  }
+  let html = '<div class="pagination">';
+  html += `<button class="page-prev" ${correctionPage === 1 ? 'disabled' : ''}>◀</button>`;
+  let start = Math.max(1, correctionPage - 3);
+  let end = Math.min(totalPages, start + 6);
+  for (let i = start; i <= end; i++) {
+    html += `<button class="page-num ${i === correctionPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
+  }
+  html += `<button class="page-next" ${correctionPage === totalPages ? 'disabled' : ''}>▶</button>`;
+  html += '</div>';
+  container.innerHTML = html;
+
+  // 이벤트 바인딩
+  container.querySelectorAll('.page-prev').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (correctionPage > 1) {
+        correctionPage--;
+        renderCorrectionTable();
+        renderCorrectionPagination();
+      }
+    });
+  });
+  container.querySelectorAll('.page-next').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (correctionPage < totalPages) {
+        correctionPage++;
+        renderCorrectionTable();
+        renderCorrectionPagination();
+      }
+    });
+  });
+  container.querySelectorAll('.page-num').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const page = parseInt(e.currentTarget.dataset.page);
+      if (!isNaN(page) && page !== correctionPage) {
+        correctionPage = page;
+        renderCorrectionTable();
+        renderCorrectionPagination();
+      }
+    });
+  });
+}
+
+// 초기 렌더링 실행
+renderCorrectionTable();
+renderCorrectionPagination();
 
   const refreshBtn = document.getElementById('refreshCorrectionBtn');
   if (refreshBtn) {

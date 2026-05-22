@@ -424,6 +424,43 @@
       border-color: var(--pbl);
       color: var(--sub);
     }
+    /* 페이지네이션 */
+.pagination {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 20px 0 10px;
+}
+.pagination button {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--pbl);
+  background: var(--panel);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sub);
+  transition: all 0.2s;
+}
+.pagination button.active {
+  background: var(--teal);
+  color: white;
+  border-color: var(--teal);
+}
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.pagination button:hover:not(:disabled) {
+  background: var(--teal-s);
+  color: var(--teal);
+}
+#correctionPagination {
+  clear: both;
+  display: block;
+  margin-top: 20px;
+  width: 100%;
+}
   </style>
 </head>
 <body>
@@ -461,7 +498,8 @@
       <button class="adm-btn adm-btn-ghost" id="closeErrorRetryModal">✕ 닫기</button>
     </div>
     <div style="flex:1; overflow: auto;">
-      <iframe src="adminErrorretry.html" style="width:100%; height:100%; border: none;"></iframe>
+      <iframe src="adminErrorretry.html" style="width:100%; height:100%; border: none;" scrolling="no" 
+      sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"></iframe>
     </div>
   </div>
 </div>
