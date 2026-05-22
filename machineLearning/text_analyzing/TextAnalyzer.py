@@ -379,64 +379,71 @@ class TextAnalyzer:
 
         return True
 
-    def run_analysis(self, target_langs=['ko', 'en']):
-        #  GTX 1060 환경을 고려하여 배치 사이즈 16 유지 (안정성)
+    def run_analysis(self, lang: str = None, start_date: str = None, end_date: str = None):
         batch_size = 64
-        for lang in target_langs:
-            self._load_models(lang)
 
-            index_name = f"news_{lang}"
-            scan = helpers.scan(
-                self.es,
-                index=index_name,
-                query={"query": {"match_all": {}}},
-                size=1000,
-                _source=["content", "title"],
-                scroll='2h'  # 이 부분을 추가하세요
-            )
+        # ← target_langs 루프 제거, lang 단일 처리
+        self._load_models(lang)
 
-            batch_docs = []
+        index_name = f"news_{lang}"
 
-            for doc in tqdm(scan, desc=f"Processing {lang.upper()}"):
-                content = doc['_source'].get('content', '')
-                title = doc['_source'].get('title', '')
-                if not content or len(content) < 10:
-                    continue
+        # ← 날짜 필터 추가
+        if start_date and end_date:
+            es_query = {
+                "query": {
+                    "range": {
+                        "published_at": {"gte": start_date, "lte": end_date}
+                    }
+                }
+            }
+        else:
+            es_query = {"query": {"match_all": {}}}
 
-                full_text = re.sub(r'\\+', '', f"{title}. {content}").replace('"', '')
+        result = self.es.search(index=index_name, body=es_query, size=10000,
+                                _source=["content", "title"])
+        docs = result["hits"]["hits"]
 
-                ko_tokens = None
-                en_doc = None
-                if lang == 'ko':
-                    ko_tokens = self.kiwi.tokenize(full_text)
-                    ner_results, candidate_results = self._extract_ner(full_text, lang, ko_tokens=ko_tokens)
-                else:
-                    en_doc = self.nlp_en(full_text)
-                    ner_results, candidate_results = self._extract_ner(full_text, lang, en_doc=en_doc)
+        batch_docs = []
 
-                #  추출 결과에서 하드코딩 불용어 최종 필터링 적용
-                ner_results["company"] = [c for c in ner_results["company"] if c not in self.hard_noise_company]
-                ner_results["person"] = [p for p in ner_results["person"] if p not in self.hard_noise_person]
+        for doc in tqdm(docs, desc=f"Processing {lang.upper()}"):
+            content = doc['_source'].get('content', '')
+            title = doc['_source'].get('title', '')
+            if not content or len(content) < 10:
+                continue
 
-                batch_docs.append({
-                    "id": doc['_id'],
-                    "content": full_text,
-                    "ko_tokens": ko_tokens,
-                    "en_doc": en_doc,
-                    "ner": ner_results,
-                    "lang": lang
-                })
+            full_text = re.sub(r'\\+', '', f"{title}. {content}").replace('"', '')
 
-                if len(batch_docs) >= batch_size:
-                    t0 = time.time()
-                    self.process_and_save(batch_docs)
-                    logger.info(f"[TIME] process_and_save {len(batch_docs)} docs: {time.time() - t0:.2f}s")
-                    batch_docs = []
+            ko_tokens = None
+            en_doc = None
+            if lang == 'ko':
+                ko_tokens = self.kiwi.tokenize(full_text)
+                ner_results, candidate_results = self._extract_ner(full_text, lang, ko_tokens=ko_tokens)
+            else:
+                en_doc = self.nlp_en(full_text)
+                ner_results, candidate_results = self._extract_ner(full_text, lang, en_doc=en_doc)
 
-            if batch_docs:
+            ner_results["company"] = [c for c in ner_results["company"] if c not in self.hard_noise_company]
+            ner_results["person"] = [p for p in ner_results["person"] if p not in self.hard_noise_person]
+
+            batch_docs.append({
+                "id": doc['_id'],
+                "content": full_text,
+                "ko_tokens": ko_tokens,
+                "en_doc": en_doc,
+                "ner": ner_results,
+                "lang": lang
+            })
+
+            if len(batch_docs) >= batch_size:
+                t0 = time.time()
                 self.process_and_save(batch_docs)
+                logger.info(f"[TIME] process_and_save {len(batch_docs)} docs: {time.time() - t0:.2f}s")
+                batch_docs = []
 
-            self.clear_memory()
+        if batch_docs:
+            self.process_and_save(batch_docs)
+
+        self.clear_memory()
 
     def process_and_save(self, docs):
         actions = []
