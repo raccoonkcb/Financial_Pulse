@@ -20,8 +20,8 @@ logger = getLogger("crawl")
 
 # [설정]
 ES_URL = 'http://100.88.143.23:9200'
-# INDEX_NAME = 'news_ko'
-INDEX_NAME= "ko_test"
+INDEX_NAME = 'news_ko'
+# INDEX_NAME= "ko_test"
 MAX_WORKERS = 2
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -178,12 +178,25 @@ def fetchList(target_date):
                     if not raw_href:
                         continue
 
-                    # 🚀 [핵심 수정] URL 방어적 결합 로직
-                    # 주소가 /로 시작하는 상대 경로인 경우에만 도메인을 결합합니다.
+                    # 1. 일관성을 위해 일단 절대 경로로 변환
                     if raw_href.startswith("/"):
                         final_url = "https://finance.naver.com" + raw_href
                     else:
-                        final_url = raw_href  # 이미 http:// 나 https:// 로 시작하면 그대로 사용
+                        final_url = raw_href
+
+                    # 2. [핵심 추가] 네이버 금융 주소를 표준 뉴스(n.news.naver.com) 주소로 강제 변환
+                    # URL에서 office_id와 article_id 값을 정규표현식으로 추출합니다.
+                    office_match = re.search(r'office_id=(\d+)', final_url)
+                    article_match = re.search(r'article_id=(\d+)', final_url)
+
+                    if office_match and article_match:
+                        office_id = office_match.group(1)
+                        article_id = article_match.group(1)
+                        # 원하는 깖끔한 n.news.naver.com 주소 형식으로 조립
+                        final_url = f"https://n.news.naver.com/mnews/article/{office_id}/{article_id}"
+                    else:
+                        # 혹시라도 매칭이 안 되는 예외적인 주소는 기존 주소 유지 (방어 코드)
+                        final_url = final_url
 
                     all_targets.append({
                         "title": anchor.get_text().strip(),
@@ -191,7 +204,6 @@ def fetchList(target_date):
                         "pub_str": date_tag.get_text().strip() if date_tag else "",
                         "source_type": "naver"
                     })
-
         except Exception as e:
             logger.error(f"네이버 수집 에러 (Page {page}): {e}")
             break
@@ -200,6 +212,7 @@ def fetchList(target_date):
     logger.info(f"[{target_date}] 한국경제 목록 수집 중...")
     hk_date = target_date.replace("-", ".")
     for kw in TARGET_KEYWORDS:
+
         for page in range(1, 6):
             try:
                 url = (f"https://search.hankyung.com/search/news?query={kw}"
