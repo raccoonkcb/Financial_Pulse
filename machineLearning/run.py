@@ -1,7 +1,7 @@
 from datetime import datetime
-from text_analyzing.TextAnalyzer import TextAnalyzer
-from sentiment_analyzing.main_senti import run_sentiment_pipeline
-from labeling.main_labeling import run_sector_sync
+from machineLearning.text_analyzing.TextAnalyzer import TextAnalyzer
+from machineLearning.sentiment_analyzing.main_senti import run_sentiment_pipeline
+from machineLearning.labeling.main_labeling import run_sector_sync
 from logs.logger import getLogger
 import sys
 import os

@@ -20,7 +20,8 @@ logger = getLogger("crawl")
 
 # [설정]
 ES_URL = 'http://100.88.143.23:9200'
-INDEX_NAME = 'news_ko'
+# INDEX_NAME = 'news_ko'
+INDEX_NAME= "ko_test"
 MAX_WORKERS = 2
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -155,17 +156,42 @@ def fetchList(target_date):
             url = f"https://finance.naver.com/news/mainnews.naver?date={target_date}&page={page}"
             res = requests.get(url, headers=HEADERS, timeout=10)
             soup = BeautifulSoup(res.text, "html.parser")
-            items = soup.select("li.block1")
+
+            # items = soup.select("li.block1")
+            # 최신 네이버 금융 메인뉴스 리스트를 포괄하는 안전한 셀렉터 조합
+            items = soup.select("ul.newsList li, li.block1, .mainNewsList li")
+
             for item in items:
-                anchor = item.select_one("dd.articleSubject a")
+                # anchor = item.select_one("dd.articleSubject a")
+                anchor = item.select_one("dd.articleSubject a, dt.articleSubject a, .articleSub a")
+
                 date_tag = item.select_one(".wdate")
+                # if anchor:
+                #     all_targets.append({
+                #         "title": anchor.get_text().strip(),
+                #         "url": "https://finance.naver.com" + anchor.get("href"),
+                #         "pub_str": date_tag.get_text().strip() if date_tag else "",
+                #         "source_type": "naver"
+                #     })
                 if anchor:
+                    raw_href = anchor.get("href", "").strip()
+                    if not raw_href:
+                        continue
+
+                    # 🚀 [핵심 수정] URL 방어적 결합 로직
+                    # 주소가 /로 시작하는 상대 경로인 경우에만 도메인을 결합합니다.
+                    if raw_href.startswith("/"):
+                        final_url = "https://finance.naver.com" + raw_href
+                    else:
+                        final_url = raw_href  # 이미 http:// 나 https:// 로 시작하면 그대로 사용
+
                     all_targets.append({
                         "title": anchor.get_text().strip(),
-                        "url": "https://finance.naver.com" + anchor.get("href"),
+                        "url": final_url,
                         "pub_str": date_tag.get_text().strip() if date_tag else "",
                         "source_type": "naver"
                     })
+
         except Exception as e:
             logger.error(f"네이버 수집 에러 (Page {page}): {e}")
             break
