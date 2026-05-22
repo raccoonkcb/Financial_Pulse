@@ -2,6 +2,12 @@ from datetime import datetime
 from text_analyzing.TextAnalyzer import TextAnalyzer
 from sentiment_analyzing.main_senti import run_sentiment_pipeline
 from labeling.main_labeling import run_sector_sync
+from logs.logger import getLogger
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+logger = getLogger("ml")
 
 # =====================================================================
 # [ML 파이프라인 제어 설정 구역]
@@ -19,24 +25,24 @@ TARGET_LANGS = ["ko", "en"]
 # =====================================================================
 
 
-def run():
+def run(lang: str):
     td = datetime.now().strftime("%Y-%m-%d")
 
-    print(f" [ML 파이프라인 시작] 대상 날짜: {td} | 대상 언어: {TARGET_LANGS}")
+    logger.info(f"[ML 파이프라인 시작] 대상 날짜: {td} | 대상 언어: {lang}")
 
     # 1. 섹터 라벨링 실행 (설정한 날짜 반영)
-    print("\n[1/3] 섹터 라벨링(Sector Sync) 시작...")
-    run_sector_sync(start_date=td, end_date=td)
+    logger.info("[1/3] 섹터 라벨링(Sector Sync) 시작...")
+    run_sector_sync(lang, td, td)
 
     # 2. 감성 분석 실행 (설정한 날짜 반영)
-    print("\n[2/3] 감성 분석 파이프라인 시작...")
-    run_sentiment_pipeline(start_date=td, end_date=td)
+    logger.info("[2/3] 감성 분석 파이프라인 시작...")
+    run_sentiment_pipeline(lang, td, td)
 
     # 3. NER 및 키워드 분석 실행 (설정한 언어와 날짜 반영)
-    print("\n[3/3] Text Analyzer 시작...")
-    TextAnalyzer().run_analysis(target_langs=TARGET_LANGS, start_date=td, end_date=td)
+    logger.info("[3/3] Text Analyzer 시작...")
+    TextAnalyzer().run_analysis(lang, td, td)
 
-    print(f"\n✅ [{td}] 모든 ML 분석 작업 완료 및 종료.")
+    logger.info(f"[{td}] 모든 ML 분석 작업 완료 및 종료.")
 
 
 if __name__ == "__main__":

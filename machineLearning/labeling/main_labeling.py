@@ -17,9 +17,10 @@ MAX_LEN = 256
 
 es = Elasticsearch(ES_URL)
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_CONFIGS = {
-    "ko": "./model_news_ko",
-    "en": "./model_news_en"
+    "ko": os.path.join(BASE_DIR, "model_news_ko"),
+    "en": os.path.join(BASE_DIR, "model_news_en")
 }
 
 
@@ -58,70 +59,81 @@ def predict(title, content, model, tokenizer, classes):
     return classes[idx]
 
 
-def run_sector_sync():
+def run_sector_sync(lang: str, start_date: str, end_date: str):
     logger.info("분석 및 데이터 동기화 시작", extra={"action": "run_sector_sync"})
-    for lang in ["ko", "en"]:
-        origin_index = f"news_{lang}"
-        model, tokenizer, classes, model_ver_tag = load_inference_resources(lang)
 
-        if model is None:
-            logger.warning(f"[SKIP] {lang.upper()} 모델 경로가 없다.", extra={"action": "run_sector_sync"})
-            continue
+    origin_index = f"news_{lang}"
+    model, tokenizer, classes, model_ver_tag = load_inference_resources(lang)
 
-        # 전체 개수 확인 (tqdm total 설정을 위함)
-        try:
-            total_count = es.count(index=origin_index)['count']
-        except:
-            total_count = None
 
-        # 원본 인덱스 스캔
+    if model is None:
+        logger.warning(f"[SKIP] {lang.upper()} 모델 경로가 없다.", extra={"action": "run_sector_sync"})
+        return
+
+    # 전체 개수 확인 (tqdm total 설정을 위함)
+    try:
+        total_count = es.count(index=origin_index)['count']
+    except:
+        total_count = None
+
+    # 원본 인덱스 스캔
+    if start_date and end_date:
+        query = {
+            "_source": ["title", "content"],
+            "query": {
+                "range": {
+                    "published_at": {"gte": start_date, "lte": end_date}
+                }
+            }
+        }
+    else:
         query = {
             "_source": ["title", "content"],
             "query": {"match_all": {}}
         }
-        scan = helpers.scan(es, index=origin_index, query=query, size=200)
+    scan = helpers.scan(es, index=origin_index, query=query, size=200)
 
-        actions = []
-        # tqdm으로 실시간 진행 바 출력
-        for doc in tqdm(scan, total=total_count, desc=f"Processing {lang.upper()}"):
-            source = doc['_source']
-            fixed_id = doc['_id']
+    actions = []
+    # tqdm으로 실시간 진행 바 출력
+    for doc in tqdm(scan, total=total_count, desc=f"Processing {lang.upper()}"):
+        source = doc['_source']
+        fixed_id = doc['_id']
 
-            title = source.get('title', '')
-            content = source.get('content', '')
-            if not content: continue
+        title = source.get('title', '')
+        content = source.get('content', '')
+        if not content: continue
 
-            # 1. 섹터 예측
-            pred_sector = predict(title, content, model, tokenizer, classes)
+        # 1. 섹터 예측
+        pred_sector = predict(title, content, model, tokenizer, classes)
 
-            # 2. 계층형 필드 구성 (Strict 매핑 완벽 대응)
-            # 2. 계층형 필드 구성 (스키마 구조에 100% 매칭)
-            update_doc = {
-                "doc_id": fixed_id,
-                "title": title,
-                "lang": lang,
-                "sector": pred_sector,
+        # 2. 계층형 필드 구성 (Strict 매핑 완벽 대응)
+        # 2. 계층형 필드 구성 (스키마 구조에 100% 매칭)
+        update_doc = {
+            "doc_id": fixed_id,
+            "title": title,
+            "lang": lang,
+            "sector": pred_sector,
 
-                # [핵심] 점(.) 표기법을 사용하면 다른 하위 필드(keywords 등)를 건드리지 않습니다.
-                "model_ver.sector": model_ver_tag
-            }
+            # [핵심] 점(.) 표기법을 사용하면 다른 하위 필드(keywords 등)를 건드리지 않습니다.
+            "model_ver.sector": model_ver_tag
+        }
 
-            actions.append({
-                "_op_type": "update",
-                "_index": TARGET_INDEX,
-                "_id": fixed_id,
-                "doc": update_doc,
-                "doc_as_upsert": True
-            })
+        actions.append({
+            "_op_type": "update",
+            "_index": TARGET_INDEX,
+            "_id": fixed_id,
+            "doc": update_doc,
+            "doc_as_upsert": True
+        })
 
-            if len(actions) >= 200:
-                helpers.bulk(es, actions)
-                actions = []
-
-        if actions:
+        if len(actions) >= 200:
             helpers.bulk(es, actions)
+            actions = []
 
-        logger.info(f"[{lang.upper()}] 작업 완료", extra={"action": "run_sector_sync"})
+    if actions:
+        helpers.bulk(es, actions)
+
+    logger.info(f"[{lang.upper()}] 작업 완료", extra={"action": "run_sector_sync"})
 
     logger.info("분석 및 데이터 동기화 작업 완료", extra={"action": "run_sector_sync"})
 
