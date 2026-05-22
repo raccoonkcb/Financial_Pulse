@@ -48,18 +48,20 @@
     </div>
 
     <div class="fixed-header">
-        <div class="status-summary">
-            <div class="status-item"><div class="status-count error-count" id="errorCount">0</div><div>ERROR</div><div>패시브 대상</div></div>
-            <div class="status-item"><div class="status-count warn-count" id="warnCount">0</div><div>WARN</div><div>비지역 실행</div></div>
-            <div class="status-item"><div class="status-count retry-count" id="retryCount">0</div><div>재시도 예정</div><div>선택 항목</div></div>
-        </div>
+    <div class="status-summary">
+        <div class="status-item"><div class="status-count error-count" id="errorCount">0</div><div>ERROR</div><div>패시브 대상</div></div>
+        <div class="status-item"><div class="status-count retry-count" id="retryCount">0</div><div>재시도 예정</div><div>선택 항목</div></div>
+    </div>
 
-        <div class="action-bar">
-            <div>
-                <input type="checkbox" id="selectAll"> 전체 선택 (ERROR만)
-            </div>
+    <div class="action-bar">
+        <div>
+            <input type="checkbox" id="selectAll"> 전체 선택 (ERROR만)
+        </div>
+        <div style="display:flex; gap:8px;">
+            <button class="btn-retry" id="ignoreBtn" style="background:#6c757d;">🗑️ 선택 무시(삭제)</button>
             <button class="btn-retry" id="retryBtn">🚀 오류 재시도 실행</button>
         </div>
+    </div>
 
         <div id="messageArea" class="message-area"></div>
         <hr>
@@ -96,39 +98,22 @@
         }
 
         async function loadLogs() {
-            try {
-                // ERROR 로그
-                const resError = await fetch(BASE_URL + '/logs/search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({ subject: 'crawl', level: 'ERROR', size: 1000 })
-                });
-                const dataError = await resError.json();
-                const payloadError = dataError.data || dataError;
-                const errorLogs = (payloadError.logs || []).map(mapLog);
-
-                // WARN 로그
-                const resWarn = await fetch(BASE_URL + '/logs/search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({ subject: 'crawl', level: 'WARNING', size: 1000 })
-                });
-                const dataWarn = await resWarn.json();
-                const payloadWarn = dataWarn.data || dataWarn;
-                const warnLogs_ = (payloadWarn.logs || []).map(mapLog);
-
-                errorItems = errorLogs.map(l => ({ ...l, selected: false }));
-                warnLogs   = warnLogs_;
-
-                console.log('✅ 로그 로드 성공 - ERROR:', errorItems.length, 'WARN:', warnLogs.length); // 디버깅
-                renderTable();
-            } catch (e) {
-                console.error('로그 조회 실패:', e);
-                showMessage('⚠️ 로그를 불러오지 못했습니다: ' + e.message, 'error');
-            }
-        }
+    try {
+        const resError = await fetch(BASE_URL + '/logs/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ subject: 'crawl', level: 'ERROR', size: 1000 })
+        });
+        const dataError = await resError.json();
+        errorItems = (dataError.data?.logs || dataError.logs || []).map((l, idx) => ({ ...mapLog(l, idx), selected: false }));
+        warnLogs   = [];  // ← WARN 로드 제거
+    } catch(e) {
+        console.error('로그 조회 실패:', e);
+        showMessage('⚠️ 로그를 불러오지 못했습니다: ' + e.message, 'error');
+    }
+    renderTable();
+}
 
         function renderTable() {
             const tbody = document.getElementById('logBody');
@@ -296,8 +281,37 @@
             } else {
                 console.warn('retryBtn 요소를 찾을 수 없음');
             }
+            const ignoreBtn = document.getElementById('ignoreBtn');
+            if (ignoreBtn) {
+                ignoreBtn.addEventListener('click', async () => {
+    const selected = errorItems.filter(item => item.selected);
+    if (selected.length === 0) {
+        showMessage('⚠️ 무시할 항목을 선택해주세요.', 'warning');
+        return;
+    }
 
-            // 로그 로드 시작
+    let successCount = 0;
+    for (const err of selected) {
+        try {
+            const res = await fetch(BASE_URL + '/logs/delete', {
+                method     : 'POST',
+                headers    : { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body       : JSON.stringify({ log_id: err.id })
+            });
+            const result = await res.json();
+            if (res.ok && result.success) {
+                successCount++;
+                errorItems = errorItems.filter(e => e.id !== err.id);
+            }
+        } catch(e) {
+            console.error('삭제 실패:', e);
+        }
+    }
+    showMessage(`🗑️ ${successCount}개 삭제 완료`, 'success');
+    renderTable();
+                });
+            }
             loadLogs();
         });
     })();

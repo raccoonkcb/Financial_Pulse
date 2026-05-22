@@ -426,10 +426,9 @@ async function _renderCrawlerPage() {
     <h2 style="font-size:20px;font-weight:900;color:var(--navy);display:flex;align-items:center;gap:10px;">
       <i class="fas fa-spider" style="color:var(--teal);"></i> 크롤링 스케줄러 관리
     </h2>
-    <div class="adm-stats-grid">
+    <div class="adm-stats-grid" style="grid-template-columns: repeat(3, 1fr);">
       <div class="adm-stat-card asc-info"><div class="asc-label">총 로그</div><div class="asc-val">${summary.total}</div></div>
       <div class="adm-stat-card asc-err"><div class="asc-label">ERROR</div><div class="asc-val">${summary.error}</div><div class="asc-sub">재시도 대상</div></div>
-      <div class="adm-stat-card asc-warn"><div class="asc-label">WARN</div><div class="asc-val">${summary.warning}</div></div>
       <div class="adm-stat-card asc-ok"><div class="asc-label">마지막 실행</div><div class="asc-val" style="font-size:14px;">${lastRun}</div><div class="asc-sub">최근 로그 기준</div></div>
     </div>
     <div class="adm-log-wrap">
@@ -440,7 +439,7 @@ async function _renderCrawlerPage() {
         </div>
       </div>
       <div style="overflow-x:auto;">
-        <table class="adm-table">
+        <table class="adm-table crawler-log-table">
           <thead>
             <tr><th>타임스탬프</th><th>레벨</th><th>메시지</th></tr>            
           </thead>
@@ -558,12 +557,19 @@ async function _renderEsPage() {
       <div>
         <label>날짜</label>
         <input type="date" id="archiveDate" value="${today}">
+        <span style="font-size: 12px; color: var(--sub); background: rgba(0,181,173,0.08); padding: 4px 12px; border-radius: 20px;">
+          <i class="fas fa-info-circle"></i> 선택된 날짜 이전 데이터가 아카이빙 됩니다
+        </span>
       </div>
     </div>
 
     <div class="adm-log-wrap">
       <div class="adm-log-toolbar">
-        <div class="alt-title">인덱스 현황</div>
+          <div class="alt-title">인덱스 현황
+          <span style="font-size: 12px; color: var(--neg); background: rgba(205, 238, 19, 0.65); padding: 4px 12px; border-radius: 20px;">
+          <i class="fas fa-info-circle"></i> CSV 파일 반출 시 서버에서 지워집니다!!!
+        </span>
+        </div>
       </div>
       <div style="overflow-x:auto;">
         <table class="adm-table" style="min-width: 400px;">
@@ -871,35 +877,38 @@ function showConfirmModal(action, onConfirm, isDelete = false) {
 
 // 성향 변경 적용(테이블 업데이트)
 async function applyCorrection(row, newTendency) {
-  if (!row) return;
+    if (!row) return;
 
-  const doc_id   = row.getAttribute('data-id');
-  const tendMap  = { '긍정': 'positive', '중립': 'neutral', '부정': 'negative' };
-  const scoreMap = { '긍정': 85, '중립': 50, '부정': 15 };
-  const tendency  = tendMap[newTendency] || 'neutral';
-  const tendScore = scoreMap[newTendency] || 50.0;
+    const doc_id    = row.getAttribute('data-id');
+    const tendMap   = { '긍정': 'positive', '중립': 'neutral', '부정': 'negative' };
+    const tendency  = tendMap[newTendency] || 'neutral';
 
-  try {
-    const res = await fetch(BASE_URL + '/correction/apply', {
-      method     : 'POST',
-      headers    : { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body       : JSON.stringify({ doc_id, tendency, tend_score: tendScore })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error('보정 실패');
+    // ← 현재 점수 그대로 유지 (scoreMap 제거)
+    const tendScore = parseFloat(row.getAttribute('data-score')) || 50.0;
 
-    // UI 업데이트
-    row.cells[3].innerHTML = `<span class="log-badge ${getTendencyClass(newTendency)}">${newTendency}</span>`;
-    row.setAttribute('data-tendency', newTendency);
-    row.cells[2].innerHTML = tendScore.toFixed(1);
-    row.cells[2].style.color = getScoreColor(tendScore.toFixed(1));
-    row.setAttribute('data-score', tendScore.toFixed(1));
+    // ← 긍정이면 "긍정 확정" 표시
+    const displayLabel = (newTendency === '긍정' || newTendency === '부정') ? `${newTendency} 확정` : newTendency;
 
-    showToast(`✅ ${row.getAttribute('data-title')} → ${newTendency}로 변경되었습니다.`);
-  } catch(e) {
-    showToast(`❌ 보정 실패: ${e.message}`);
-  }
+    try {
+        const res = await fetch(BASE_URL + '/correction/apply', {
+            method     : 'POST',
+            headers    : { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body       : JSON.stringify({ doc_id, tendency, tend_score: tendScore })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error('보정 실패');
+
+        // UI 업데이트
+        row.cells[3].innerHTML = `<span class="log-badge ${getTendencyClass(newTendency)}">${displayLabel}</span>`;
+        row.setAttribute('data-tendency', newTendency);
+        // ← 점수 UI도 그대로 유지
+        row.setAttribute('data-score', tendScore.toFixed(1));
+
+        showToast(`✅ ${row.getAttribute('data-title')} → ${displayLabel}로 변경되었습니다.`);
+    } catch(e) {
+        showToast(`❌ 보정 실패: ${e.message}`);
+    }
 }
 
 // 삭제 확인 모달 열기
@@ -968,12 +977,6 @@ async function _renderCorrectionPage() {
     <div class="page-title">
       <i class="fas fa-wand-magic-sparkles"></i> 데이터 보정 (비정형 성향치)
     </div>
-    <div class="adm-stats-grid">
-      <div class="adm-stat-card asc-warn"><div class="asc-label">감지건수</div><div class="asc-val">${reviewItems.length}</div><div class="asc-sub">비정형 감지</div></div>
-      <div class="adm-stat-card asc-ok"><div class="asc-label">자동보정</div><div class="asc-val">-</div><div class="asc-sub">자동 처리됨</div></div>
-      <div class="adm-stat-card asc-err"><div class="asc-label">검토필요</div><div class="asc-val">${reviewItems.length}</div><div class="asc-sub">관리자 확인 필요</div></div>
-      <div class="adm-stat-card asc-info"><div class="asc-label">학습데이터 누적</div><div class="asc-val">-</div><div class="asc-sub">재학습 대기</div></div>
-    </div>
     <div class="adm-log-wrap">
       <div class="adm-log-toolbar">
         <div class="alt-title"><i class="fas fa-triangle-exclamation" style="color:var(--gold);"></i> 검토 필요 항목</div>
@@ -982,7 +985,7 @@ async function _renderCorrectionPage() {
         </div>
       </div>
       <div style="overflow-x:auto;">
-        <table class="adm-table" id="correctionTable">
+        <table class="adm-table correction-table" id="correctionTable">
           <thead><tr><th>제목</th><th style="width:40%">URL</th><th>tend_score</th><th>tendency</th><th style="width:100px">처리</th></tr></thead>
           <tbody id="correctionTableBody"></tbody>          
         </table>
@@ -1181,6 +1184,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
       document.getElementById('errorRetryModal').style.display = 'none';
+      _renderCrawlerPage();
     });
   }
 });

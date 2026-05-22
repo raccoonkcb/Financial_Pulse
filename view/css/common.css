@@ -113,7 +113,7 @@
     /* Topbar */
     .topbar{display:flex;flex-direction: column;gap:16px;margin: 16px; padding:16px 20px;}
     .topbar-row {display: flex;align-items: center;flex-wrap: wrap;gap: 16px;}
-    .search-wrap{display:flex;flex:1;gap:8px;align-items:center;}
+    .search-wrap{display:flex;flex:1;gap:8px;align-items:center;position: relative;}
     .search-icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--sub);pointer-events:none;}
     .search-input{width:100%;border:1.5px solid rgba(0,181,173,.18);background:rgba(255,255,255,.95);border-radius:var(--rmd);padding:14px 16px 14px 44px;font-size:14px;font-family:inherit;outline:none;transition:.25s;height:50px;}
     .search-input:focus{border-color:var(--teal);box-shadow:0 0 0 4px rgba(0,181,173,.12);}

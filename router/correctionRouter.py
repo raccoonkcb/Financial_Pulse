@@ -7,12 +7,12 @@ from encryption.encAuth import verify_admin
 router = APIRouter(prefix="/correction", tags=["correction"])
 
 @router.get("/detect")
-def detect(api_key=Depends(verify_admin)):
+def detect(size: int = 500, api_key=Depends(verify_admin)):
     """
     비정형 감지
     - 인증 필요 이유: 내부 ML 분석 데이터 보호
     """
-    return detectIrregular()
+    return detectIrregular(size=size)
 
 @router.post("/apply")
 def apply(req: CorrectionRequest, api_key=Depends(verify_admin)):

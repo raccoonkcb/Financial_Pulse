@@ -318,7 +318,8 @@
 
     .adm-table {
       width: 100%;
-      border-collapse: collapse;
+      table-layout: fixed;
+      border-collapse: separate;
       font-size: 12px;
     }
 
@@ -339,6 +340,37 @@
 
     .adm-table td.log-msg {
       max-width: 500px;
+      word-break: break-word;
+      white-space: normal;
+    }
+
+        /* 로그 뷰어 전용 테이블 너비 고정 */
+    .log-viewer-table {
+      table-layout: fixed;
+      width: 100%;
+    }
+    .log-viewer-table th,
+    .log-viewer-table td {
+      padding: 12px 16px;
+    }
+    .log-viewer-table th:nth-child(1),
+    .log-viewer-table td:nth-child(1) {
+      width: 170px;
+      white-space: nowrap;
+    }
+    .log-viewer-table th:nth-child(2),
+    .log-viewer-table td:nth-child(2) {
+      width: 100px;
+      white-space: nowrap;
+    }
+    .log-viewer-table th:nth-child(3),
+    .log-viewer-table td:nth-child(3) {
+      width: 90px;
+      white-space: nowrap;
+    }
+    .log-viewer-table th:nth-child(4),
+    .log-viewer-table td:nth-child(4) {
+      width: auto;
       word-break: break-word;
       white-space: normal;
     }
@@ -405,6 +437,79 @@
       text-align: center;
       position: relative;
     }
+
+     /* 데이터 보정 페이지 전용 테이블 스타일 */
+    .correction-table {
+      width: 100%;
+      table-layout: fixed;  /* 내용에 따라 너비 자동 조정, 필요시 fixed도 가능 */
+    }
+    .correction-table th,
+    .correction-table td {
+      padding: 12px 14px;
+      vertical-align: middle;
+    }
+    .correction-table th:nth-child(1), /* 제목 */
+    .correction-table td:nth-child(1) {
+      width: 30%;
+      min-width: 300px;
+    }
+    .correction-table th:nth-child(2), /* URL */
+    .correction-table td:nth-child(2) {
+      width: 30%;
+      min-width: 100px;
+    }
+    .correction-table th:nth-child(3), /* 점수 */
+    .correction-table td:nth-child(3) {
+      width: 10%;
+      min-width: 80px;
+    }
+    .correction-table th:nth-child(4), /* 성향 */
+    .correction-table td:nth-child(4) {
+      width: 12%;
+      min-width: 90px;
+    }
+    .correction-table th:nth-child(5), /* 처리 버튼 */
+    .correction-table td:nth-child(5) {
+      width: 8%;
+      min-width: 80px;
+    }
+
+    /* 크롤링 관리 페이지 전용 테이블 */
+    .crawler-log-table {
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: collapse;
+    }
+
+    .crawler-log-table th,
+    .crawler-log-table td {
+      padding: 12px 14px;
+      vertical-align: middle;
+      border-bottom: 1px solid var(--pbl);
+    }
+
+    /* 타임스탬프 칼럼 */
+    .crawler-log-table th:nth-child(1),
+    .crawler-log-table td:nth-child(1) {
+      width: 170px;
+      white-space: nowrap;
+    }
+
+    /* 레벨 칼럼 (뱃지) */
+    .crawler-log-table th:nth-child(2),
+    .crawler-log-table td:nth-child(2) {
+      width: 90px;
+      white-space: nowrap;
+    }
+
+    /* 메시지 칼럼: 나머지 공간 사용, 줄바꿈 허용 */
+    .crawler-log-table th:nth-child(3),
+    .crawler-log-table td:nth-child(3) {
+      width: auto;
+      word-break: break-word;
+      white-space: normal;
+    }
+
         /* 활성화된 재시도 버튼 스타일 (기본 ghost 버튼) */
     .retry-missing-btn:not(:disabled) {
       opacity: 1;

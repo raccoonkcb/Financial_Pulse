@@ -4,9 +4,9 @@ from dataStorage.elasticSearch.es import getEs, ANALYZE_DATA_IDX
 from logs.logger import getLogger
 
 
-logger = getLogger("ml")
+logger = getLogger("system")
 
-def detectIrregular() -> dict:
+def detectIrregular(size: int = 500) -> dict:
     """
     비정형 감지 - tend_score 95 이상 또는 5 이하 기사 탐지
     → dataCon UI 검토 필요 목록 처리
@@ -22,7 +22,7 @@ def detectIrregular() -> dict:
                 {"range": {"tend_score": {"lte":  5}}}
             ]}},
             "_source": ["doc_id", "title", "url", "tend_score", "tendency"],
-            "size": 1000
+            "size": size
         }
     )
     docs = []

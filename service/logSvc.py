@@ -145,4 +145,24 @@ def exportLogCsv(req: LogSearchRequest) -> str:
     # BOM 추가 (한글 깨짐 방지)
     return "\ufeff" + output.getvalue()
 
+def deleteLog(log_id: str) -> dict:
+    es = getEs()
+    try:
+        doc = es.get(index=ALL_LOG_IDX, id=log_id)
+        subject = doc["_source"].get("subject", "")
+        subject_index = f"logs_{subject}" if subject else None
 
+        es.delete(index=ALL_LOG_IDX, id=log_id)
+
+        if subject_index:
+            try:
+                es.delete(index=subject_index, id=log_id)
+            except:
+                pass
+    except Exception as e:
+        es.close()
+        raise e
+
+    es.close()
+    logger.info("로그 삭제 완료", extra={"action": "deleteLog", "log_id": log_id})
+    return {"success": True, "message": "삭제 완료"}

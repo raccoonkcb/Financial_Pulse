@@ -2,12 +2,21 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from model.logModel import LogSearchRequest
 from model.logArchiveModel import ArchiveRequest
-from service.logSvc import searchLog, exportLogCsv, getLogSummary
+from service.logSvc import searchLog, exportLogCsv, getLogSummary, deleteLog
 from service.logArchiveSvc import streamLogs, archiveLogs
 from encryption.encAuth import verify_admin
+from pydantic import BaseModel
 import io
 
 router = APIRouter(prefix="/logs", tags=["logs"])
+
+class DeleteLogRequest(BaseModel):
+    log_id: str
+
+@router.post("/delete")
+def delete(req: DeleteLogRequest, api_key=Depends(verify_admin)):
+    """로그 단건 삭제"""
+    return deleteLog(req.log_id)
 
 @router.post("/search")
 def search(req: LogSearchRequest, api_key=Depends(verify_admin)):
