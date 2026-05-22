@@ -16,31 +16,33 @@
   <aside class="sidebar" id="appSidebar"></aside>
   <main class="content">
     <div class="panel topbar">
-      <div>
+      <!-- 1줄: 검색창 + 국가/뷰 버튼 -->      
+      <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
         <div class="search-wrap">
           <i class="fas fa-magnifying-glass search-icon"></i>
           <input id="searchInput" class="search-input" placeholder="키워드 검색 후 엔터 (예: 반도체, AI)">
           <button id="searchBtn" class="search-btn">검색</button>
         </div>
-        <div class="search-tags" id="searchTags">
-          <button class="search-tag">IT/기술</button>
-          <button class="search-tag">금융</button>
-          <button class="search-tag">중공업/인프라</button>
-          <button class="search-tag">소비재/서비스</button>
-          <button class="search-tag">바이오/헬스</button>
-          <button class="search-tag">모빌리티</button>
-          <button class="search-tag">매크로/정책</button>
+        <div class="sw-group" id="countrySwitch">
+          <button class="sw-btn active" data-country="kr">국내</button>
+          <button class="sw-btn" data-country="us">해외</button>
+        </div>
+        <div class="sw-group">
+          <button class="sw-btn active" data-view="single">단일 보기</button>
+          <button class="sw-btn" data-view="split">분할 보기</button>
         </div>
       </div>
-      <div class="sw-group" id="countrySwitch">
-        <button class="sw-btn active" data-country="kr">국내</button>
-        <button class="sw-btn" data-country="us">해외</button>
+      <!-- 2줄: 검색 태그들 -->
+      <div class="search-tags" id="searchTags" style="margin-top: 12px;">
+        <button class="search-tag">IT/기술</button>
+        <button class="search-tag">금융</button>
+        <button class="search-tag">중공업/인프라</button>
+        <button class="search-tag">소비재/서비스</button>
+        <button class="search-tag">바이오/헬스</button>
+        <button class="search-tag">모빌리티</button>
+        <button class="search-tag">매크로/정책</button>
       </div>
-      <div class="sw-group">
-        <button class="sw-btn active" data-view="single">단일 보기</button>
-        <button class="sw-btn" data-view="split">분할 보기</button>
-      </div>
-    </div>
+    </div>    
 
     <!-- proto_v13의 #mainPageView 구조 -->
     <div id="mainPageView">

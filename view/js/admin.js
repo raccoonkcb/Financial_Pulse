@@ -73,7 +73,7 @@ async function _fetchAdminLogs(params = {}) {
     start_time : params.from || null,
     end_time   : params.to || null,
     keyword    : params.keyword || null,
-    size       : 200
+    size       : 1000
   };
 
   // null 값 제거
@@ -410,10 +410,16 @@ async function _renderCrawlerPage() {
   // 오류 로그 — subject=crawl 전체 로그
   let crawlLogs = [];
   try {
-    crawlLogs = await _fetchAdminLogs({ subject: 'crawl' });
+    crawlLogs = await _fetchAdminLogs({ subject: 'crawl', level: 'ERROR' });
+    const warnLogs = await _fetchAdminLogs({ subject: 'crawl', level: 'WARNING' });
+    crawlLogs = [...crawlLogs, ...warnLogs];
   } catch(e) { console.warn('crawl logs 실패:', e); }
 
-  const lastRun = summary.latest ? summary.latest.replace('T', ' ').slice(0, 16) : '-';
+  const lastRun = summary.latest
+    ? new Date(summary.latest)
+        .toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false })
+        .slice(0, 16)
+    : '-';
   const errorLogs = crawlLogs.filter(l => l.level === 'ERROR' || l.level === 'WARN' || l.level === 'WARNING');
 
   main.innerHTML = `
@@ -604,7 +610,7 @@ async function _renderEsPage() {
           credentials: 'include',
           body: JSON.stringify({
             index: indexName,
-            date: date   // "2026-05-07" 형식 (연-월-일)
+            before_date: date   // "2026-05-07" 형식 (연-월-일)
           })
         });
 
@@ -746,7 +752,11 @@ function openConfirmCorrectionModal() {
 
   // 항목 정보 표시
   document.getElementById('confirmItemTitle').innerText = currentCorrectionItem.title;
-  document.getElementById('confirmItemUrl').innerText = currentCorrectionItem.url;
+  const urlEl = document.getElementById('confirmItemUrl');
+  const fullUrl = currentCorrectionItem.url || '';
+  urlEl.href = fullUrl;
+  urlEl.innerText = fullUrl.length > 20 ? fullUrl.slice(0, 20) + '...' : fullUrl;
+  urlEl.title = fullUrl;
   document.getElementById('confirmItemScore').innerText = currentCorrectionItem.score;
   document.getElementById('confirmCurrentTendency').innerHTML = `<span class="log-badge ${getTendencyClass(currentCorrectionItem.currentTendency)}">${currentCorrectionItem.currentTendency}</span>`;
 
@@ -766,16 +776,6 @@ function openConfirmCorrectionModal() {
     });
   });
 
-  // 중립
-  neutralBtn.replaceWith(neutralBtn.cloneNode(true));
-  const newNeutral = document.getElementById('actionNeutral');
-  newNeutral.addEventListener('click', () => {
-    showConfirmModal('중립', () => {
-      applyCorrection(currentCorrectionRow, '중립');
-      modal.classList.remove('show');
-    });
-  });
-
   // 부정
   negativeBtn.replaceWith(negativeBtn.cloneNode(true));
   const newNegative = document.getElementById('actionNegative');
@@ -788,16 +788,26 @@ function openConfirmCorrectionModal() {
 
   // 삭제
   deleteBtn.replaceWith(deleteBtn.cloneNode(true));
-  const newDelete = document.getElementById('actionDelete');
-  newDelete.addEventListener('click', () => {
-    showConfirmModal('삭제', () => {
-      if (currentCorrectionRow) currentCorrectionRow.remove();
-      modal.classList.remove('show');
-      showToast(`${currentCorrectionItem.title} 항목이 삭제되었습니다.`);
-      currentCorrectionItem = null;
-      currentCorrectionRow = null;
-    }, true); // 삭제는 빨간색 스타일
-  });
+const newDelete = document.getElementById('actionDelete');
+newDelete.addEventListener('click', () => {
+    showConfirmModal('삭제', async () => {
+        try {
+            const res = await fetch(BASE_URL + `/correction/article/${currentCorrectionItem.id}`, {
+                method: 'DELETE',
+                credentials: 'include',
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.message || '삭제 실패');
+            if (currentCorrectionRow) currentCorrectionRow.remove();
+            modal.classList.remove('show');
+            showToast(`✅ ${currentCorrectionItem.title} 항목이 삭제되었습니다.`);
+            currentCorrectionItem = null;
+            currentCorrectionRow = null;
+        } catch(e) {
+            showToast(`❌ 삭제 실패: ${e.message}`);
+        }
+    }, true);
+});
 
   modal.classList.add('show');
 }
@@ -834,10 +844,10 @@ function showConfirmModal(action, onConfirm, isDelete = false) {
   const okBtn = document.getElementById('tendencyConfirmOk');
   okBtn.replaceWith(okBtn.cloneNode(true));
   const newOk = document.getElementById('tendencyConfirmOk');
-  newOk.onclick = () => {
-    onConfirm();
+  newOk.onclick = async () => {
+    await onConfirm();
     confirmModal.classList.remove('show');
-  };
+};
 
   // 취소 버튼
   const cancelBtn = document.getElementById('tendencyConfirmCancel');

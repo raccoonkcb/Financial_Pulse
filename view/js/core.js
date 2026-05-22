@@ -398,7 +398,7 @@ async function openAnalysisOverlay(kw) {
         <div class="ao-news-meta">
           <span class="ao-nm-tag ${tagClass}">${tagText}</span>
           <span>📰 ${_esc(art.sector || '금융')}</span>
-          <span>🏷️ 점수: ${(art.tend_score ?? art.score ?? 0).toFixed(1)}</span>
+          <span>🏷️ 점수: ${Math.round(art.tend_score)}</span>
         </div>
       `;
       card.addEventListener('click', () => { if(art.url) window.open(art.url, '_blank'); });
