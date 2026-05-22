@@ -565,3 +565,23 @@ def withdraw(req: DeleteUserRequest,request: Request):
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
     finally:
         conn.close()
+
+@router.get("/profile")
+def getProfile(request: Request):
+    """현재 로그인한 사용자 프로필 조회"""
+    u_id = request.session.get("u_id")
+    if not u_id:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+
+    conn = getConn()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT email, name, phone_num FROM user WHERE u_id = %s", (u_id,)
+            )
+            user = cursor.fetchone()
+            if not user:
+                raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+            return {"success": True, "message": "프로필 조회 성공", "data": user}
+    finally:
+        conn.close()

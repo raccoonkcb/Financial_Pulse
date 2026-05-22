@@ -882,9 +882,7 @@ function drawNetworkFromApi(cid, netWrapId, networkData) {
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }
-      if (isHeld) { ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 2.5; ctx.stroke(); }
-<!--      ctx.beginPath(); ctx.arc(nd.x - nd.r * 0.35, nd.y - nd.r * 0.35, nd.r * 0.2, 0, Math.PI * 2);-->
-<!--      ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill();-->
+      if (isHeld) { ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 2.5; ctx.stroke(); }      
       ctx.shadowBlur = 1.2; ctx.shadowColor = 'rgba(0,0,0,0.2)';
       ctx.fillStyle = textColor; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       let size = (nd.rank >= 1 && nd.rank <= 4) ? 14 : 10; ctx.font = `700 ${size}px "Noto Sans KR",sans-serif`;
@@ -1032,7 +1030,7 @@ function renderNewsPanel(apiData, containerId) {
   container.innerHTML = cards.map(({ keyword, art }) => {
     const tag      = art.tendency || 'neutral';
     const sector   = art.sector   || '';
-    const score    = art.tend_score ? (art.tend_score * 100).toFixed(0) : '-';
+    const score = art.tend_score != null ? art.tend_score : '-';
     const imgSrc   = sectorImgMap[sector] || defaultImg;
     const tagColor = tagColorMap[tag] || 'var(--sub)';
     const tagLabel = tagMap[tag] || '중립';

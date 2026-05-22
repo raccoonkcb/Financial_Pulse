@@ -263,15 +263,6 @@ def buildHotIssues(res_b: dict, res_c: dict) -> list:
 
 
 def buildSpikeAndSector(res_f: dict, res_g: dict):
-    """
-    급등 기사 성향 분석(6번) + 섹터별 긍/부정 비율(8번) 동시 생성
-
-    res_f          : msearch 쿼리 F 응답 (오늘 sector × tendency)
-    res_g          : msearch 쿼리 G 응답 (7일  sector × tendency)
-    spike_analysis → 오늘 vs 7일 평균 변화량, abs(pos변화량) 내림차순
-    sector_tendency→ 오늘 섹터별 긍/부정 비율
-    사용처          : 대시보드 급등 분석 패널, 섹터별 스택 바 차트
-    """
     today_ratios = calcSectorRatios(
         res_f.get("aggregations", {}).get("sector_breakdown", {}).get("buckets", [])
     )
@@ -279,9 +270,13 @@ def buildSpikeAndSector(res_f: dict, res_g: dict):
         res_g.get("aggregations", {}).get("sector_breakdown", {}).get("buckets", [])
     )
 
+    # ← 오늘 + 7일 전체 섹터 합집합
+    all_sectors = set(today_ratios.keys()) | set(week_ratios.keys())
+
     spike_analysis = []
-    for sector, today in today_ratios.items():
-        week         = week_ratios.get(sector, {"pos": 0.0, "neg": 0.0, "neu": 0.0, "total": 0})
+    for sector in all_sectors:
+        today        = today_ratios.get(sector, {"pos": 0.0, "neg": 0.0, "total": 0, "_pos_count": 0, "_neg_count": 0})
+        week         = week_ratios.get(sector,  {"pos": 0.0, "neg": 0.0, "total": 0})
         week_avg_total = round(week["total"] / 7, 1)
         spike_analysis.append({
             "sector"  : sector,
@@ -295,7 +290,8 @@ def buildSpikeAndSector(res_f: dict, res_g: dict):
     spike_analysis.sort(key=lambda x: abs(x["change"]["pos"]), reverse=True)
 
     sector_tendency = [
-        {"sector": s, **r} for s, r in today_ratios.items()
+        {"sector": s, **today_ratios.get(s, {"pos": 0.0, "neg": 0.0, "total": 0})}
+        for s in all_sectors
     ]
     return spike_analysis, sector_tendency
 

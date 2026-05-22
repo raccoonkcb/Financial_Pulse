@@ -782,84 +782,48 @@ window.onload = function () {
   document.getElementById('loginBtn').onclick                    = doLogin;
   document.getElementById('loginPassword').onkeydown = e => { if (e.key === 'Enter') doLogin(); };
 
-    // 로그인 실패 카운터 (이메일 기준)
-  function getFailCount(email) {
-      const key = `login_fail_${email}`;
-      const count = localStorage.getItem(key);
-      return count ? parseInt(count) : 0;
-  }
-  function setFailCount(email, count) {
-      const key = `login_fail_${email}`;
-      if (count >= 5) {
-          localStorage.setItem(key, 5);
-      } else if (count <= 0) {
-          localStorage.removeItem(key);
-      } else {
-          localStorage.setItem(key, count);
-      }
-  }
-  function resetFailCount(email) {
-      localStorage.removeItem(`login_fail_${email}`);
-  }
-
   async function doLogin() {
-      const email = document.getElementById('loginEmail').value.trim();
-      const pw = document.getElementById('loginPassword').value;
-      const al = document.getElementById('lAlert');
-      const ms = document.getElementById('lMsg');
-      const btn = document.getElementById('loginBtn');
-      al.className = 'l-alert';
+    const email = document.getElementById('loginEmail').value.trim();
+    const pw    = document.getElementById('loginPassword').value;
+    const al    = document.getElementById('lAlert');
+    const ms    = document.getElementById('lMsg');
+    const btn   = document.getElementById('loginBtn');
+    al.className = 'l-alert';
 
-      if (!email || !pw) {
-          al.className = 'l-alert show err';
-          ms.innerText = '이메일과 비밀번호를 입력하세요.';
-          return;
-      }
+    if (!email || !pw) {
+        al.className = 'l-alert show err';
+        ms.innerText = '이메일과 비밀번호를 입력하세요.';
+        return;
+    }
 
-      // 이메일 형식 검사
-      const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      if (!emailPattern.test(email)) {
-          al.className = 'l-alert show err';
-          ms.innerText = '올바른 이메일 형식이 아닙니다.';
-          return;
-      }
+    const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailPattern.test(email)) {
+        al.className = 'l-alert show err';
+        ms.innerText = '올바른 이메일 형식이 아닙니다.';
+        return;
+    }
 
-      // 현재 실패 횟수 확인
-      let failCount = getFailCount(email);
-      if (failCount >= 5) {
-          al.className = 'l-alert show err';
-          ms.innerText = '로그인이 5회 실패하여 잠겼습니다. 비밀번호 찾기를 이용하세요.';
-          return;
-      }
+    setBtnLoading(btn, true);
+    try {
+        const data = await apiLogin(email, pw);
+        // 로그인 성공
+        if (email === 'dino@financial.pulse') {
+            location.href = 'admin.html';
+        } else {
+            location.href = 'dashboard.html';
+        }
+    } catch (e) {
+        // 백엔드 메시지 그대로 표시
+        al.className = 'l-alert show err';
+        ms.innerText = e.message || '이메일 또는 비밀번호가 올바르지 않습니다.';
 
-      setBtnLoading(btn, true);
-      try {
-          const data = await apiLogin(email, pw);
-          // 로그인 성공 → 실패 카운터 초기화
-          resetFailCount(email);
-          if (email === 'dino@financial.pulse') {
-              location.href = 'admin.html';
-          } else {
-              location.href = 'dashboard.html';
-          }
-      } catch (e) {
-          // 실패 횟수 증가
-          failCount++;
-          setFailCount(email, failCount);
-          const remaining = 5 - failCount;
-
-          // 통일된 오류 메시지
-          al.className = 'l-alert show err';
-          ms.innerText = `이메일 또는 비밀번호가 일치하지 않습니다. (남은 시도: ${remaining}회)`;
-
-          // 남은 시도 표시 (fail-cnt 영역)
-          const fc = document.getElementById('failCnt');
-          fc.className = 'fail-cnt show';
-          fc.innerText = `로그인 실패 (남은 시도: ${remaining}회)`;
-      } finally {
-          setBtnLoading(btn, false, '로그인');
-      }
-  }
+        const fc = document.getElementById('failCnt');
+        fc.className = 'fail-cnt show';
+        fc.innerText = e.message || '로그인 실패';
+    } finally {
+        setBtnLoading(btn, false, '로그인');
+    }
+}
 
 
   // ================================================================

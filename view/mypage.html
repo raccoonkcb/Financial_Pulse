@@ -482,10 +482,23 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // ── 프로필 표시 (세션에 이름/이메일 저장되어 있다고 가정) ───────
   // 필요 시 GET /membership/profile 엔드포인트 추가 후 교체
-  const savedName  = sessionStorage.getItem('fp_name')  || '사용자';
-  const savedEmail = sessionStorage.getItem('fp_email') || '';
-  document.getElementById('profileName').innerText  = savedName;
-  document.getElementById('profileEmail').innerText = savedEmail;
+  try {
+      const res  = await fetch('/membership/profile', { credentials: 'include' });
+      const data = await res.json();
+      const profile = data.data || data;
+      const name  = profile.name  || '사용자';
+      const email = profile.email || '';
+      document.getElementById('profileName').innerText  = name;
+      document.getElementById('profileEmail').innerText = email;
+      sessionStorage.setItem('fp_name',  name);
+      sessionStorage.setItem('fp_email', email);
+      bindEvents(email);
+  } catch(e) {
+      const savedEmail = sessionStorage.getItem('fp_email') || '';
+      document.getElementById('profileName').innerText  = sessionStorage.getItem('fp_name') || '사용자';
+      document.getElementById('profileEmail').innerText = savedEmail;
+      bindEvents(savedEmail);
+  }
 
   bindEvents(savedEmail);
 });
@@ -500,6 +513,9 @@ function bindEvents(email) {
     document.getElementById('verifyCurrentPw').value = '';
     document.getElementById('verifyAlert').classList.add('hidden');
     document.getElementById('verifyPwModal').classList.add('active');
+    document.getElementById('verifyCurrentPw').onkeydown = (e) => {
+    if (e.key === 'Enter') document.getElementById('confirmVerifyBtn').click();
+    };
   });
 
   document.getElementById('confirmVerifyBtn').onclick = async () => {
