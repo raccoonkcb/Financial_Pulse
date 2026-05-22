@@ -39,7 +39,7 @@ class TextAnalyzer:
             "유튜브", "페이스북", "트위터", "인스타그램", "온라인", "오프라인",
             "기자", "특파원", "연구원", "팀", "관계자", "전문가", "한경", "매경",
             "뉴스", "연합뉴스", "이데일리", "조선일보", "동아일보", "중앙일보","로이터",
-            "상법","증선위","신한자산운","한경DB","고대역폭메모리","HBM"
+            "상법","증선위","신한자산운","한경DB","고대역폭메모리","HBM","Showcase"
 
         }
 
@@ -48,7 +48,7 @@ class TextAnalyzer:
             "네티즌", "누리꾼", "소비자", "고객", "저자", "독자", "팀장", "본부장", "위원장",
             "대통령", "총리", "장관", "의원", "교수", "연구원", "기자", "특파원", "리포터",
             "앵커", "애널리스트", "이코노미스트", "작전세력", "기관투자가", "외국인","이지만",
-            "Ai","신중하",""
+            "Ai","신중하","New York City","Flo Rida"
         }
         # =========================================================================
 
@@ -136,8 +136,13 @@ class TextAnalyzer:
                     continue
 
                 if cat == 'company':
+                    # 대표명만 등록
                     self.kp_comp_ko.add_keyword(ko_rep, rep)
                     self.kp_comp_en.add_keyword(en_rep, rep)
+
+                    rep_key = rep.lower().replace(" ", "")
+                    self.normalization_dicts['company'][rep_key] = rep
+
                 elif cat == 'person':
                     # 대표명만 매칭
                     self.kp_pers_ko.add_keyword(ko_rep, rep)
@@ -211,8 +216,10 @@ class TextAnalyzer:
             ner_results["person"] = list(dict.fromkeys(self.kp_pers_ko.extract_keywords(content)))
         else:
             ner_results["region"] = list(dict.fromkeys(self.kp_reg_en.extract_keywords(content)))
-            ner_results["company"] = list(dict.fromkeys(self.kp_comp_en.extract_keywords(content)))
-            ner_results["person"] = list(dict.fromkeys(self.kp_pers_en.extract_keywords(content)))
+
+            # 중요: 영어 기업/인물은 대표명 normalization 매칭만 허용
+            ner_results["company"] = []
+            ner_results["person"] = []
 
         if lang == 'ko':
             tokens = ko_tokens if ko_tokens is not None else self.kiwi.tokenize(content)
@@ -279,13 +286,11 @@ class TextAnalyzer:
         return list(dict.fromkeys(result))
 
     def _apply_mapping(self, word, cat, ner_results, candidate_results, lang):
-        # 1. 하드코딩 불용어(Stopwords) 필터링
         if word in self.hard_noise_company or word in self.hard_noise_person:
             return
 
         search_key = word.lower().replace(" ", "")
 
-        # 2. 기존 사전 매핑 (회사/인물 우선 처리)
         found_cat = None
         if search_key in self.normalization_dicts['company']:
             found_cat = 'company'
@@ -300,18 +305,21 @@ class TextAnalyzer:
                 candidate_results[found_cat].append(official_name)
             return
 
-        # 3. 사전 매핑이 안 된 경우 -> 기존 검증 로직 타기
-        if not cat: return
-        if cat == "region": return
+        # 영어 기업/인물은 대표명 사전 매칭 실패하면 버림
+        if lang == 'en' and cat in ("company", "person"):
+            return
+
+        if not cat:
+            return
+        if cat == "region":
+            return
 
         if cat == "company":
-            # 기존 회사 검증 로직 유지
             if self._is_valid_company(word, lang, ner_results):
                 ner_results["company"].append(word)
                 candidate_results["company"].append(word)
 
         elif cat == "person":
-            # 기존 인물 검증 로직 유지
             if self._is_valid_person(word, lang, ner_results):
                 ner_results["person"].append(word)
                 candidate_results["person"].append(word)
@@ -547,9 +555,6 @@ class TextAnalyzer:
                             person_candidate_results,
                             'ko'
                         )
-
-                    logger.info(f" 👤 PERSON 후보(raw): {person_name_candidates[:20]}")
-                    logger.info(f" 👤 PERSON 사전매칭후: {d['ner']['person']}")
 
                     valid_tokens = [t.form for t in tokens if t.form not in self.finance_noise_ko and len(t.form) > 1]
                     valid_set = set(valid_tokens)
@@ -879,4 +884,4 @@ class TextAnalyzer:
 
 if __name__ == "__main__":
     analyzer = TextAnalyzer()
-    analyzer.run_analysis(target_langs=['ko', 'en'])
+    analyzer.run_analysis(target_langs=['ko','en'])
