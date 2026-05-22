@@ -57,9 +57,15 @@ def run_sentiment_pipeline(lang: str, start_date: str, end_date: str):
         valid_batch_docs = []
 
         for d in batch_docs:
-            text = d['_source'].get('content', '')
-            if text and len(str(text).strip()) > 10:
-                batch_texts.append(text)
+            source = d['_source']
+            title = source.get('title', '')
+            content = source.get('content', '')
+
+            # 제목 가중치를 위해 3회 반복
+            weighted_text = f"{title}. {title}. {title}. {content}"
+
+            if weighted_text and len(str(weighted_text).strip()) > 10:
+                batch_texts.append(weighted_text)
                 valid_batch_docs.append(d)
 
         if not batch_texts: continue
