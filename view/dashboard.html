@@ -17,7 +17,7 @@
   <main class="content">
     <div class="panel topbar">
       <!-- 1줄: 검색창 + 국가/뷰 버튼 -->      
-      <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap; position: relative">
         <div class="search-wrap">
           <i class="fas fa-magnifying-glass search-icon"></i>
           <input id="searchInput" class="search-input" placeholder="키워드 검색 후 엔터 (예: 반도체, AI)">
@@ -33,16 +33,15 @@
         </div>
       </div>
       <!-- 2줄: 검색 태그들 -->
-      <div class="search-tags" id="searchTags" style="margin-top: 12px;">
-        <button class="search-tag">IT/기술</button>
-        <button class="search-tag">금융</button>
-        <button class="search-tag">중공업/인프라</button>
-        <button class="search-tag">소비재/서비스</button>
-        <button class="search-tag">바이오/헬스</button>
-        <button class="search-tag">모빌리티</button>
-        <button class="search-tag">매크로/정책</button>
-      </div>
-    </div>    
+    <div class="search-tags" id="searchTags" style="margin-top: 12px;">
+        <button class="search-tag" data-sector="IT/기술">IT/기술</button>
+        <button class="search-tag" data-sector="금융">금융</button>
+        <button class="search-tag" data-sector="중공업/인프라">중공업/인프라</button>
+        <button class="search-tag" data-sector="소비재/서비스">소비재/서비스</button>
+        <button class="search-tag" data-sector="바이오/헬스">바이오/헬스</button>
+        <button class="search-tag" data-sector="모빌리티">모빌리티</button>
+        <button class="search-tag" data-sector="매크로/정책">매크로/정책</button>
+    </div>
 
     <!-- proto_v13의 #mainPageView 구조 -->
     <div id="mainPageView">
@@ -82,6 +81,7 @@
 // ================================================================
 window.curCountry = 'kr';
 window.curView    = 'single';
+window.curSpikeData = { kr: [], us: [] };
 window.dashData   = { ko: null, en: null };
 
 // ================================================================
@@ -377,6 +377,8 @@ async function renderSplitView() {
     renderHotIssueGrid('hotUS', hotUS);
     renderTrendAnalysisFromApi('trendKR', dataKR.spike_analysis);
     renderTrendAnalysisFromApi('trendUS', dataUS.spike_analysis);
+    window.curSpikeData.kr = dataKR.spike_analysis || [];
+    window.curSpikeData.us = dataUS.spike_analysis || [];
     renderMarketSentimentFromApi('donutKR', dataKR.market_tendency);
     renderMarketSentimentFromApi('donutUS', dataUS.market_tendency);
     renderSectorStackFromApi('stackKR', dataKR.sector_tendency);
@@ -472,6 +474,7 @@ async function renderSingleView() {
 
   const sectors = toCoreSectors(d);
   renderTrendAnalysisFromApi('trendGrid', d.spike_analysis || []);
+  window.curSpikeData[curCountry] = d.spike_analysis || [];
   renderMarketSentimentFromApi('sentimentDonut', d.market_tendency);
   renderSectorStackFromApi('sectorStack', d.sector_tendency);
   let filteredIndicators = (d.eco_indicators || []).filter(ind => {
@@ -543,8 +546,15 @@ function bindEvents() {
 
   document.querySelectorAll('.search-tag').forEach(tag => {
     tag.addEventListener('click', () => {
-      searchInput.value = tag.textContent;
-      doSearch();
+        const sector = tag.dataset.sector;
+        const isActive = tag.classList.contains('active');
+        document.querySelectorAll('.search-tag').forEach(t => t.classList.remove('active'));
+        if (!isActive) {
+            tag.classList.add('active');
+            filterNewsBySector(sector);
+        } else {
+            filterNewsBySector(null);
+        }
     });
   });
 
@@ -554,7 +564,71 @@ function bindEvents() {
   const closeOverlay = () => overlay.classList.remove('show');
   closeBtn?.addEventListener('click', closeOverlay);
   backBtn?.addEventListener('click', closeOverlay);
+}
 
+function filterNewsBySector(sector) {
+    // 현재 보기에 맞는 데이터 선택
+    let articles = [];
+    if (window.curView === 'split') {
+        const krData = (window.curSpikeData.kr || []).find(s => s.sector === sector);
+        const usData = (window.curSpikeData.us || []).find(s => s.sector === sector);
+        articles = [
+            ...((krData?.articles || []).map(a => ({...a, lang: '🇰🇷 국내'}))),
+            ...((usData?.articles || []).map(a => ({...a, lang: '🇺🇸 해외'})))
+        ];
+    } else {
+        const data = (window.curSpikeData[curCountry] || []).find(s => s.sector === sector);
+        articles = (data?.articles || []).map(a => ({...a, lang: curCountry === 'kr' ? '🇰🇷 국내' : '🇺🇸 해외'}));
+    }
+    openSectorModal(sector, articles);
+}
+
+function openSectorModal(sector, articles) {
+    document.getElementById('sectorModal')?.remove();
+
+    const tendencyLabel = t => t === 'positive' ? '<span style="color:var(--pos);">긍정</span>' : t === 'negative' ? '<span style="color:var(--neg);">부정</span>' : '중립';
+
+    const modal = document.createElement('div');
+    modal.id = 'sectorModal';
+    modal.style.cssText = `
+        position:fixed; top:0; left:0; width:100%; height:100%;
+        background:rgba(0,0,0,0.5); z-index:9999;
+        display:flex; align-items:center; justify-content:center;
+    `;
+    modal.innerHTML = `
+        <div style="background:white; border-radius:16px; padding:28px; width:600px; max-width:90vw; height:80vh; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-shrink:0;">
+                <h3 style="font-size:18px; font-weight:800; color:var(--navy);">📰 ${sector} 기사</h3>
+                <button onclick="document.getElementById('sectorModal').remove()"
+                    style="background:none; border:none; font-size:22px; cursor:pointer; color:var(--sub);">✕</button>
+            </div>
+            <div style="overflow-y:auto; flex:1;">
+                ${articles.length === 0
+                    ? '<div style="color:var(--sub); text-align:center; padding:20px;">기사가 없습니다.</div>'
+                    : articles.map(a => `
+                        <a href="${a.url || '#'}" target="_blank" rel="noopener"
+                           style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
+                                  padding:14px; border-bottom:1px solid var(--pbl); text-decoration:none;
+                                  cursor:pointer; transition:background 0.15s;"
+                           onmouseover="this.style.background='#f5f7fa'"
+                           onmouseout="this.style.background=''">
+                            <div style="flex:1;">
+                                <div style="font-size:13px; font-weight:600; color:var(--navy); margin-bottom:6px; line-height:1.5;">${a.title}</div>
+                                <div style="font-size:12px; color:var(--sub);">${a.lang} · 점수: ${a.tend_score?.toFixed(1) ?? '-'}</div>
+                            </div>
+                            <div style="font-size:12px; font-weight:700; white-space:nowrap;">${tendencyLabel(a.tendency)}</div>
+                        </a>
+                    `).join('')
+                }
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener('click', e => {
+        if (e.target === modal) modal.remove();
+    });
+
+    document.body.appendChild(modal);
 }
 
 // ================================================================
